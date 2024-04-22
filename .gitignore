@@ -36,6 +36,12 @@ MANIFEST
 *.manifest
 *.spec
 
+# extensions
+*.png
+*.jpg
+*.jpeg
+*.webp
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
