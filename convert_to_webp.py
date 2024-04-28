@@ -59,30 +59,30 @@ def convert_image(input_path, output_folder_path, output_format, quality, lossle
             })
 
             if output_format.lower() in ("jpg", "jpeg"):
-                image.save(output_path, format="JPEG",
-                           exif=exif_bytes, quality=quality)
+                image.save(output_path, format="jpeg",
+                           quality=quality, optimize=True, exif=exif_bytes, lossless=lossless)
             else:
                 image.save(output_path, format="WEBP",
-                           exif=exif_bytes, quality=quality)
+                           exif=exif_bytes, quality=quality, lossless=lossless)
 
         else:
             raise Exception("Invalid image format")
 
 
 def convert_images_in_folder(folder_path, output_path, output_format, quality, lossless=False):
+    # 出力フォルダが存在しなければ作成する
+    os.makedirs(output_path, exist_ok=True)
+
     for root, dirs, files in os.walk(folder_path):
         for file in files:
             if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 input_path = os.path.join(root, file)
-                convert_image(input_path, output_path, output_format, quality)
+                convert_image(input_path, output_path,
+                              output_format, quality, lossless)
 
 
 if __name__ == "__main__":
-    # if len(sys.argv) < 3:
-    #     print("使用方法: python convert_images.py <ファイル/フォルダ> <出力形式>")
-    # else:
-    # input_path = sys.argv[1]
-    # output_format = sys.argv[2]
+    # テスト用
     input_path = "./input"
     output_format = "jpg"
     output_path = "./output"
@@ -90,8 +90,6 @@ if __name__ == "__main__":
     lossless = True
     isdir = os.path.isdir(input_path)
     isfile = os.path.isfile(input_path)
-
-    os.makedirs(output_path, exist_ok=True)
 
     if isdir:
         convert_images_in_folder(
