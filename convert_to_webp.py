@@ -60,7 +60,7 @@ def convert_image(input_path, output_folder_path, output_format, quality, lossle
 
             if output_format.lower() in ("jpg", "jpeg"):
                 image.save(output_path, format="jpeg",
-                           quality=quality, optimize=True, exif=exif_bytes, lossless=lossless)
+                           quality=int(quality), optimize=True, exif=exif_bytes, lossless=lossless)
             else:
                 image.save(output_path, format="WEBP",
                            exif=exif_bytes, quality=quality, lossless=lossless)
