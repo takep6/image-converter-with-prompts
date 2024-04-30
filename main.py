@@ -4,8 +4,8 @@ import os
 import flet as ft
 from flet import (Card, Column, Container, Dropdown, ElevatedButton,
                   FilePicker, FilePickerResultEvent, Icon, MainAxisAlignment,
-                  ProgressBar, Row, Slider, Switch, Text, TextField, alignment,
-                  colors, dropdown, icons)
+                  ProgressBar, Row, Slider, Switch, Text, TextButton,
+                  TextField, alignment, colors, dropdown, icons)
 
 import convert_to_webp as cv_webp
 
@@ -23,7 +23,7 @@ def main(page):
     # page settings
     page.title = "Image Ext Converter"
     page.padding = 30
-    page.window_width = 700
+    page.window_width = 800
     page.window_height = 1000
 
     # json keys
@@ -153,7 +153,7 @@ def main(page):
 
     # Log output
     log_output = TextField(
-        label="Log", multiline=True, read_only=True, width=600)
+        label="ログ", value="-", multiline=True, read_only=True, width=600, )
 
     progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
 
@@ -170,6 +170,15 @@ def main(page):
         page.update()
 
     switch_settings(init_ext)
+
+    def open_output_dir(e):
+        # OS によって適切なコマンドを使ってフォルダを開く
+        if os.name == 'nt':  # Windows の場合
+            os.system(f'explorer "{output_path.value}"')
+        elif os.name == 'posix':  # macOS や Linux の場合
+            os.system(f'open "{output_path.value}"')
+        else:
+            print("この OS はサポートされていません。")
 
     def run_compression(e):
         is_not_exist_path = input_path.value == "" or output_path.value == ""
@@ -219,17 +228,22 @@ def main(page):
         page.update()
 
         # Actual compression logic goes here
-        cv_webp.convert_images_in_folder(
-            folder_path=input_dir,
-            output_path=output_dir,
-            output_format=file_ext,
-            quality=ratio,
-            lossless=is_lossless
-        )
-        page.remove(progress_bar)
-        run_btn.disabled = False
-        log_output.value += "Completed!"
-        page.update()
+        try:
+            cv_webp.convert_images_in_folder(
+                folder_path=input_dir,
+                output_path=output_dir,
+                output_format=file_ext,
+                quality=ratio,
+                lossless=is_lossless
+            )
+            log_output.value += "Completed!"
+        except Exception as e:
+            log_output.value += "変換中にエラーが発生しました"
+            log_output.value += str(e)
+        finally:
+            page.remove(progress_bar)
+            run_btn.disabled = False
+            page.update()
 
     run_btn = ElevatedButton(
         text="実行", on_click=run_compression, width=180, height=150)
@@ -256,18 +270,20 @@ def main(page):
                         Row([output_path, output_file_btn],
                             alignment=MainAxisAlignment.CENTER),
                     ]), padding=20),
+                Container(TextButton(
+                    "出力フォルダを開く", on_click=open_output_dir), height=20, margin=ft.Margin(0, 0, 50, 0), alignment=alignment.center_right),
                 Row([
                     Card(
                         Container(
                             Column([
                                 Row([
                                     Text(value="変換後の拡張子", width=150,
-                                         weight=font_bold, color=colors.BLACK87),
+                                         weight=font_bold, color=colors.BLACK87, size=16),
                                     file_types,
                                 ], width=250, alignment=MainAxisAlignment.START),
                                 Row([
                                     Text(value="可逆圧縮", width=160,
-                                         weight=font_bold, color=colors.BLACK87),
+                                         weight=font_bold, color=colors.BLACK87, size=16),
                                     lossless
                                 ], width=250, alignment=MainAxisAlignment.START),
                                 Row([
@@ -279,8 +295,9 @@ def main(page):
                         Column([
                             run_btn
                         ]), padding=20),
-                ], alignment=MainAxisAlignment.SPACE_AROUND),
-                Container(log_output, padding=20, alignment=alignment.center),
+                ], alignment=MainAxisAlignment.SPACE_EVENLY),
+                Column([Container(log_output, padding=20,
+                       alignment=alignment.center)], height=200, scroll=ft.ScrollMode.ALWAYS),
             ])
     ),
 
