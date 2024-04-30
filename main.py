@@ -9,6 +9,15 @@ from flet import (Card, Column, Container, Dropdown, ElevatedButton,
 
 import convert_to_webp as cv_webp
 
+"""
+TODO:
+入力フォルダに画像が存在しなかった場合のエラーチェック
+透明背景の画像は変換できるかチェック
+dpi、ビット数など画像データが問題なく変換できているかチェック
+巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
+コードのリファクタリング
+"""
+
 
 def main(page):
     # page settings
@@ -56,12 +65,12 @@ def main(page):
         init_compression_ratio = 100
         init_lossless = False
 
-    # descriptions
-    description01 = Text("AI生成画像のプロンプトを保持したまま画像ファイルの拡張子を変換します")
-    description02 = Text("入力・出力ファイル形式はjpg, png, webpのみ対応")
-    description03 = Text("変換後の拡張子pngを選択した場合、圧縮率は無視されます")
-
     font_bold = ft.FontWeight.BOLD
+
+    # descriptions
+    description01 = Text(
+        "AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します")
+    description02 = Text("入力・出力ファイル形式はjpg, png, webpのみ対応")
 
     # Input path field
     input_path = TextField(label="入力フォルダパス",
@@ -103,6 +112,9 @@ def main(page):
         width=80, height=60,
         on_click=lambda _: pick_output_path_dialog.get_directory_path())
 
+    def select_ext(e):
+        switch_settings(e.control.value)
+
     # Dropdown for file types
     file_types = Dropdown(
         value=init_ext,
@@ -113,6 +125,7 @@ def main(page):
         ],
         label="Format",
         width=80,
+        on_change=select_ext
     )
 
     def set_comp_ratio_val(e):
@@ -135,18 +148,28 @@ def main(page):
     comp_ratio_val_text = Text(
         value=f"圧縮率: {init_compression_ratio} %", width=120, weight=font_bold, color=colors.BLACK87, size=16)
 
-    def toggle_lossless(e):
-        compression_ratio.disabled = e.control.value
-        page.update()
-
     # Checkboxes for compression types
-    lossless = Switch(value=init_lossless, on_change=toggle_lossless)
+    lossless = Switch(value=init_lossless)
 
     # Log output
     log_output = TextField(
         label="Log", multiline=True, read_only=True, width=600)
 
     progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
+
+    def switch_settings(ext):
+        if ext == "png":
+            lossless.disabled = True
+            compression_ratio.disabled = True
+        elif ext == "jpg":
+            lossless.disabled = True
+            compression_ratio.disabled = False
+        else:
+            lossless.disabled = False
+            compression_ratio.disabled = False
+        page.update()
+
+    switch_settings(init_ext)
 
     def run_compression(e):
         is_not_exist_path = input_path.value == "" or output_path.value == ""
@@ -163,7 +186,12 @@ def main(page):
         input_dir = input_path.value
         output_dir = output_path.value
         file_ext = file_types.value.lower()
-        is_lossless = True if file_ext == "png" else lossless.value
+        if file_ext == "png":
+            is_lossless = True
+        elif file_ext == "jpg":
+            is_lossless = False
+        else:
+            is_lossless = lossless.value
         ratio = 100 if is_lossless else int(compression_ratio.value)
 
         # save json
@@ -216,8 +244,7 @@ def main(page):
                     Container(
                         Column([
                             description01,
-                            description02,
-                            description03
+                            description02
                         ]), padding=20),
                     margin=10), alignment=alignment.center),
                 Container(

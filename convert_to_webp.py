@@ -32,14 +32,16 @@ def convert_image(input_path, output_folder_path, output_format, quality, lossle
         if input_path.lower().endswith("png"):
             param_dict = image.info
         elif input_path.lower().endswith(("jpg", "jpeg", "webp")):
-            exif_dict = piexif.load(image.info["exif"])
-            # 'Exif'セクションからUserCommentを取得
-            user_comment = exif_dict["Exif"][piexif.ExifIFD.UserComment]
-            # UserCommentを文字列に復元
-            param_dict = {
-                "parameters": piexif.helper.UserComment.load(user_comment)}
+            if "exif" in image.info.keys():
+                exif_dict = piexif.load(image.info["exif"])
+                if piexif.ExifIFD.UserComment in exif_dict["Exif"].keys():
+                    # 'Exif'セクションからUserCommentを取得
+                    user_comment = exif_dict["Exif"][piexif.ExifIFD.UserComment]
+                    # UserCommentを文字列に復元
+                    param_dict = {
+                        "parameters": piexif.helper.UserComment.load(user_comment)}
 
-        # フォーマットごとにメタデータの保存の仕方が違う
+                # フォーマットごとにメタデータの保存の仕方が違う
         if output_format.lower() == 'png':
             use_metadata = False
             metadata = PngImagePlugin.PngInfo()
@@ -57,6 +59,7 @@ def convert_image(input_path, output_folder_path, output_format, quality, lossle
             exif_bytes = piexif.dump({
                 "Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(parameters or "", encoding="unicode")}
             })
+            print(exif_bytes)
 
             if output_format.lower() in ("jpg", "jpeg"):
                 image.save(output_path, format="jpeg",
