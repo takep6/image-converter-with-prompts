@@ -4,8 +4,8 @@ import os
 import flet as ft
 from flet import (Card, Column, Container, Dropdown, ElevatedButton,
                   FilePicker, FilePickerResultEvent, Icon, MainAxisAlignment,
-                  ProgressBar, Row, Slider, Switch, Text, TextButton,
-                  TextField, ThemeMode, alignment, colors, dropdown, icons)
+                  ProgressBar, Ref, Row, Slider, Switch, Text, TextButton,
+                  TextField, alignment, colors, dropdown, icons)
 
 import convert_to_webp as cv_webp
 
@@ -20,33 +20,41 @@ dpi、ビット数など画像データが問題なく変換できているか�
 
 def main(page):
     # json keys
-    input_key = "input_path"
-    output_key = "output_path"
-    ext_key = "ext_path"
-    comp_ratio_key = "comp_ratio"
-    lossless_key = "lossless"
-    theme_key = "theme_mode"
+    INPUT_KEY = "input_path"
+    OUTPUT_KEY = "output_path"
+    EXT_KEY = "ext_path"
+    COMP_RATIO_KEY = "comp_ratio"
+    LOSSLESS_KEY = "lossless"
+    THEME_KEY = "theme_mode"
 
     # json filename
     datafile = "data.json"
     themefile = "theme.json"
 
+    # init values
+    init_input_path_val = ""
+    init_output_path_val = ""
+    init_ext_val = "webp"
+    init_comp_ratio_val = 100
+    init_lossless_val = False
+    init_theme_val = "light"
+
     # create data
     if not os.path.exists(datafile):
         with open(datafile, "w") as f:
             new_data = {
-                input_key: "",
-                output_key: "",
-                ext_key: "webp",
-                comp_ratio_key: 100,
-                lossless_key: False,
+                INPUT_KEY: init_input_path_val,
+                OUTPUT_KEY: init_output_path_val,
+                EXT_KEY: init_ext_val,
+                COMP_RATIO_KEY: init_comp_ratio_val,
+                LOSSLESS_KEY: init_lossless_val,
             }
             json.dump(new_data, f, indent=4)
 
     if not os.path.exists(themefile):
         with open(themefile, "w") as f:
             new_theme = {
-                theme_key: "light"
+                THEME_KEY: init_theme_val
             }
             json.dump(new_theme, f, indent=4)
 
@@ -54,223 +62,162 @@ def main(page):
     try:
         with open(datafile, "r")as f:
             data = json.load(f)
-            init_input_path = data[input_key]
-            init_output_path = data[output_key]
-            init_ext = data[ext_key]
-            init_compression_ratio = data[comp_ratio_key]
-            init_lossless = data[lossless_key]
+            input_path_val = data[INPUT_KEY]
+            output_path_val = data[OUTPUT_KEY]
+            ext_val = data[EXT_KEY]
+            comp_ratio_val = data[COMP_RATIO_KEY]
+            lossless_val = data[LOSSLESS_KEY]
 
         with open(themefile, "r")as f:
             data = json.load(f)
-            init_theme = data[theme_key]
+            theme_val = data[THEME_KEY]
 
     except Exception as e:
         print(e, "jsonデータのロードに失敗しました。初期値でアプリを開始します。")
-        init_input_path = ""
-        init_output_path = ""
-        init_ext = "webp"
-        init_compression_ratio = 100
-        init_lossless = False
-        init_theme = "light"
+        input_path_val = init_input_path_val
+        output_path_val = init_output_path_val
+        ext_val = init_ext_val
+        comp_ratio_val = init_comp_ratio_val
+        lossless_val = init_lossless_val
+        theme_val = init_theme_val
 
     # page settings
     page.title = "Image Format Converter"
-    page.theme_mode = init_theme
+    page.theme_mode = theme_val
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 30
     page.window_width = 800
     page.window_height = 1000
 
+    # text style
     font_bold = ft.FontWeight.BOLD
 
-    # descriptions
-    description01 = Text(
-        "AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します")
-    description02 = Text("入力・出力ファイル形式はjpg, png, webpのみ対応")
+    # Control Ref
+    input_path = ft.Ref[TextField]()
+    output_path = ft.Ref[TextField]()
+    file_exts_dropdown = ft.Ref[Dropdown]()
+    compression_ratio = ft.Ref[Slider]()
+    compression_ratio_text = ft.Ref[Text]()
+    lossless = ft.Ref[Switch]()
+    log_output = ft.Ref[TextField]()
+    run_btn = ft.Ref[ElevatedButton]()
 
-    # Input path field
-    input_path = TextField(label="入力フォルダパス",
-                           value=init_input_path,
-                           width=500)
+    # FilePicker
 
-    # Output path field
-    output_path = TextField(label="出力フォルダパス",
-                            value=init_output_path,
-                            width=500)
-
-    # File/folder selection buttons
     def select_input_path(e: FilePickerResultEvent):
-        input_path.value = e.path if e.path else ""
-        if input_path.value != "":
-            input_path.bgcolor = colors.WHITE
-            input_path.error_text = ""
-            page.client_storage.set(input_key, input_path.value)
-        input_path.update()
+        input_path.current.value = e.path if e.path else ""
+        if input_path.current.value != "":
+            input_path.current.bgcolor = colors.WHITE
+            input_path.current.error_text = ""
+            page.client_storage.set(INPUT_KEY, input_path.current.value)
+        input_path.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
-        output_path.value = e.path if e.path else ""
-        if output_path.value != "":
-            output_path.bgcolor = colors.WHITE
-            output_path.error_text = ""
-            page.client_storage.set(output_key, output_path.value)
-        output_path.update()
+        output_path.current.value = e.path if e.path else ""
+        if output_path.current.value != "":
+            output_path.current.bgcolor = colors.WHITE
+            output_path.current.error_text = ""
+            page.client_storage.set(OUTPUT_KEY, output_path.current.value)
+        output_path.current.update()
 
     pick_input_path_dialog = FilePicker(on_result=select_input_path)
     pick_output_path_dialog = FilePicker(on_result=select_output_path)
     page.overlay.extend([pick_input_path_dialog, pick_output_path_dialog])
 
-    input_file_btn = ElevatedButton(
-        content=Icon(icons.FOLDER_OPEN,),
-        width=70, height=45,
-        on_click=lambda _: pick_input_path_dialog.get_directory_path())
-    output_file_btn = ElevatedButton(
-        content=Icon(icons.FOLDER_OPEN),
-        width=70, height=45,
-        on_click=lambda _: pick_output_path_dialog.get_directory_path())
-
-    def select_ext(e):
-        switch_settings(e.control.value)
-
-    # Dropdown for file types
-    file_types = Dropdown(
-        value=init_ext,
-        options=[
-            dropdown.Option("jpg"),
-            dropdown.Option("png"),
-            dropdown.Option("webp"),
-        ],
-        label="Format",
-        width=80,
-        on_change=select_ext
-    )
-
+    # compression value
     def set_comp_ratio_val(e):
         comp_val = int(e.control.value)
-        comp_ratio_val_text.value = f"圧縮率: {str(comp_val)}  %"
+        compression_ratio.current.value = comp_val
+        compression_ratio_text.current.value = f"圧縮率: {comp_val} %"
         if comp_val <= 30:
-            compression_ratio.label = "ファイルサイズ 小"
+            compression_ratio.current.label = "ファイルサイズ 小"
         elif comp_val <= 70:
-            compression_ratio.label = "ファイルサイズ 中"
+            compression_ratio.current.label = "ファイルサイズ 中"
         else:
-            compression_ratio.label = "ファイルサイズ 大"
+            compression_ratio.current.label = "ファイルサイズ 大"
         page.update()
-
-    # Compression ratio input
-    compression_ratio = Slider(
-        min=0, max=100,
-        label="ファイルサイズ 大",
-        value=init_compression_ratio, width=150, divisions=20,
-        on_change=set_comp_ratio_val)
-    comp_ratio_val_text = Text(
-        value=f"圧縮率: {init_compression_ratio} %", width=120, weight=font_bold, size=16)
-
-    # Checkboxes for compression types
-    lossless = Switch(value=init_lossless)
-
-    # Log output
-    log_output = TextField(
-        label="ログ", value="-", multiline=True, read_only=True, width=600, )
 
     progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
 
+    # format value
     def switch_settings(ext):
         if ext == "png":
-            lossless.disabled = True
-            compression_ratio.disabled = True
+            lossless.current.disabled = True
+            compression_ratio.current.disabled = True
         elif ext == "jpg":
-            lossless.disabled = True
-            compression_ratio.disabled = False
+            lossless.current.disabled = True
+            compression_ratio.current.disabled = False
         else:
-            lossless.disabled = False
-            compression_ratio.disabled = False
+            lossless.current.disabled = False
+            compression_ratio.current.disabled = False
+
+    def select_ext(e):
+        switch_settings(e.control.value)
         page.update()
-
-    def toggle_textfield_border():
-        border_color = colors.BLACK if page.theme_mode == "light" else colors.BLUE_600
-        input_path.border_color = border_color
-        output_path.border_color = border_color
-        log_output.border_color = border_color
-        page.update()
-
-    def toggle_theme(e):
-        page.theme_mode = "light" if page.theme_mode == "dark" else "dark"
-        toggle_textfield_border()
-
-        # save to json
-        theme = "light" if page.theme_mode == "light" else "dark"
-        with open(themefile, "w") as f:
-            update_theme = {
-                theme_key: theme
-            }
-            json.dump(update_theme, f, indent=4)
-
-    switch_settings(init_ext)
-    toggle_textfield_border()
-    page.floating_action_button = ft.FloatingActionButton(
-        icon=icons.DARK_MODE, on_click=toggle_theme)
-    page.update()
 
     def open_output_dir(e):
         # OS によって適切なコマンドを使ってフォルダを開く
         if os.name == 'nt':  # Windows の場合
-            os.system(f'explorer "{output_path.value}"')
+            os.system(f'explorer "{output_path.current.value}"')
         elif os.name == 'posix':  # macOS や Linux の場合
-            os.system(f'open "{output_path.value}"')
+            os.system(f'open "{output_path.current.value}"')
         else:
             print("この OS はサポートされていません。")
 
+    # save
     def save_to_json(input_dir, output_dir, file_ext, ratio, is_lossless):
         with open(datafile, "w") as f:
             update_data = {
-                input_key: input_dir,
-                output_key: output_dir,
-                ext_key: file_ext,
-                comp_ratio_key: ratio,
-                lossless_key: is_lossless,
+                INPUT_KEY: input_dir,
+                OUTPUT_KEY: output_dir,
+                EXT_KEY: file_ext,
+                COMP_RATIO_KEY: ratio,
+                LOSSLESS_KEY: is_lossless,
             }
             json.dump(update_data, f, indent=4)
 
+    # run
     def run_compression(e):
-        is_not_exist_path = input_path.value == "" or output_path.value == ""
-        if input_path.value == "":
-            input_path.error_text = "Input Pathにフォルダパスを入力してください"
-            input_path.bgcolor = ft.colors.RED_100
-        if output_path.value == "":
-            output_path.error_text = "Output Pathにフォルダパスを入力してください"
-            output_path.bgcolor = ft.colors.RED_100
+        is_not_exist_path = input_path.current.value == "" or output_path.current.value == ""
+        if input_path.current.value == "":
+            input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
+            input_path.current.bgcolor = ft.colors.RED_100
+        if output_path.current.value == "":
+            output_path.current.error_text = "Output Pathにフォルダパスを入力してください"
+            output_path.current.bgcolor = ft.colors.RED_100
         if is_not_exist_path:
             page.update()
             return
 
-        input_dir = input_path.value
-        output_dir = output_path.value
-        file_ext = file_types.value.lower()
+        input_dir = input_path.current.value
+        output_dir = output_path.current.value
+        file_ext = file_exts_dropdown.current.value.lower()
         if file_ext == "png":
             is_lossless = True
         elif file_ext == "jpg":
             is_lossless = False
         else:
-            is_lossless = lossless.value
-        ratio = 100 if is_lossless else int(compression_ratio.value)
+            is_lossless = lossless.current.value
+        ratio = 100 if is_lossless else int(compression_ratio.current.value)
 
         # save json
         save_to_json(input_dir=input_dir,
                      output_dir=output_dir,
                      file_ext=file_ext,
-                     ratio=compression_ratio,
+                     ratio=ratio,
                      is_lossless=is_lossless,
                      )
 
         # log
-        log_output.value = ""
-        log_output.value = f"Input Path: {input_dir}\n"
-        log_output.value += f"Output Path: {output_dir}\n"
-        log_output.value += f"Format: *.{file_ext}\n"
+        log_output.current.value = ""
+        log_output.current.value = f"Input Path: {input_dir}\n"
+        log_output.current.value += f"Output Path: {output_dir}\n"
+        log_output.current.value += f"Format: *.{file_ext}\n"
         if is_lossless:
-            log_output.value += f"Lossless: {is_lossless}\n"
+            log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
-            log_output.value += f"Compression Ratio: {ratio}%\n"
-        run_btn.disabled = True
+            log_output.current.value += f"Compression Ratio: {ratio}%\n"
+        run_btn.current.disabled = True
         page.add(progress_bar)
         page.update()
 
@@ -285,72 +232,186 @@ def main(page):
             )
 
             if not cv_webp.exist_images_in_folder(input_dir):
-                log_output.value = "画像ファイルが存在しません"
+                log_output.current.value = "画像ファイルが存在しません"
             else:
-                log_output.value += "画像の変換が完了しました"
+                log_output.current.value += "画像の変換が完了しました"
         except Exception as e:
-            log_output.value += "変換中にエラーが発生しました"
-            log_output.value += str(e)
+            log_output.current.value += "変換中にエラーが発生しました"
+            log_output.current.value += str(e)
         finally:
             page.remove(progress_bar)
-            run_btn.disabled = False
+            run_btn.current.disabled = False
             page.update()
 
-    run_btn = ElevatedButton(
-        text="実行", on_click=run_compression, width=180, height=150)
+    # toggle theme
+    def toggle_textfield_border():
+        border_color = colors.BLACK if page.theme_mode == "light" else colors.BLUE_600
+        input_path.current.border_color = border_color
+        output_path.current.border_color = border_color
+        log_output.current.border_color = border_color
 
+    def toggle_theme(e):
+        page.theme_mode = "light" if page.theme_mode == "dark" else "dark"
+        toggle_textfield_border()
+        page.update()
+
+        # save to json
+        theme = "light" if page.theme_mode == "light" else "dark"
+        with open(themefile, "w") as f:
+            update_theme = {
+                THEME_KEY: theme
+            }
+            json.dump(update_theme, f, indent=4)
+
+    page.floating_action_button = ft.FloatingActionButton(
+        icon=icons.DARK_MODE, on_click=toggle_theme)
+
+    # page layout
     page.add(
         Column(
             width=800,
             controls=[
-                Container(Text("画像圧縮変換ツール　アッシュ君", size=40, weight=font_bold),
-                          alignment=alignment.center, padding=20),
-                Container(Card(
-                    Container(
-                        Column([
-                            description01,
-                            description02
-                        ]), padding=20),
-                    margin=10), alignment=alignment.center),
                 Container(
-                    Column([
-                        Row([
-                            input_path,
-                            input_file_btn],
-                            alignment=MainAxisAlignment.CENTER),
-                        Row([output_path, output_file_btn],
-                            alignment=MainAxisAlignment.CENTER),
-                    ]), padding=20),
-                Container(TextButton(
-                    "出力フォルダを開く", on_click=open_output_dir), height=20, margin=ft.Margin(0, 0, 50, 0), alignment=alignment.center_right),
-                Row([
-                    Card(
+                    alignment=alignment.center, padding=20,
+                    content=Text(
+                        value="画像圧縮変換ツール　アッシュ君",
+                        size=40, weight=font_bold
+                    )),
+                Container(
+                    alignment=alignment.center,
+                    content=Card(
+                        margin=10,
+                        content=Container(
+                            padding=20,
+                            content=Column(
+                                controls=[
+                                    Text("AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します"),
+                                    Text("入力・出力ファイル形式はjpg, png, webpのみ対応")
+                                ])),
+                    )),
+                Container(
+                    padding=20,
+                    content=Column([
+                        Row(
+                            alignment=MainAxisAlignment.CENTER,
+                            controls=[
+                                TextField(
+                                    ref=input_path,
+                                    label="入力フォルダパス",
+                                    value=input_path_val, width=500),
+                                ElevatedButton(
+                                    content=Icon(icons.FOLDER_OPEN,),
+                                    width=70, height=45,
+                                    on_click=lambda _: pick_input_path_dialog.get_directory_path()),
+                            ]),
+                        Row(
+                            alignment=MainAxisAlignment.CENTER,
+                            controls=[
+                                TextField(
+                                    ref=output_path,
+                                    label="出力フォルダパス",
+                                    value=output_path_val, width=500),
+                                ElevatedButton(
+                                    content=Icon(icons.FOLDER_OPEN),
+                                    width=70, height=45,
+                                    on_click=lambda _: pick_output_path_dialog.get_directory_path()),
+                            ]),
+                    ])),
+                Container(
+                    alignment=alignment.center_right,
+                    height=30, margin=ft.Margin(0, 0, 50, 0),
+                    content=TextButton(
+                        "出力フォルダを開く", on_click=open_output_dir)),
+                Row(
+                    alignment=MainAxisAlignment.SPACE_EVENLY,
+                    controls=[
+                        Card(
+                            Container(
+                                padding=20, width=300,
+                                content=Column(
+                                    alignment=MainAxisAlignment.SPACE_BETWEEN,
+                                    height=200,
+                                    controls=[
+                                        Row(
+                                            alignment=MainAxisAlignment.START,
+                                            width=250,
+                                            controls=[
+                                                Text(
+                                                    value="変換後の拡張子",
+                                                    width=150, size=16,
+                                                    weight=font_bold),
+                                                Dropdown(
+                                                    ref=file_exts_dropdown,
+                                                    label="Format",
+                                                    value=ext_val,
+                                                    options=[
+                                                        dropdown.Option("jpg"),
+                                                        dropdown.Option("png"),
+                                                        dropdown.Option(
+                                                            "webp"),
+                                                    ],
+                                                    width=80,
+                                                    on_change=select_ext
+                                                ),
+                                            ]),
+                                        Row(
+                                            alignment=MainAxisAlignment.START,
+                                            width=250,
+                                            controls=[
+                                                Text(
+                                                    value="可逆圧縮",
+                                                    width=160, size=16,
+                                                    weight=font_bold),
+                                                Switch(ref=lossless,
+                                                       value=lossless_val),
+                                            ]),
+                                        Row(
+                                            alignment=MainAxisAlignment.START,
+                                            width=250,
+                                            controls=[
+                                                Text(
+                                                    ref=compression_ratio_text,
+                                                    value=f"圧縮率: {comp_ratio_val} %",
+                                                    width=120, size=16,
+                                                    weight=font_bold),
+                                                Slider(
+                                                    ref=compression_ratio,
+                                                    label="ファイルサイズ 大",
+                                                    min=0, max=100,
+                                                    value=comp_ratio_val,
+                                                    width=150, divisions=20,
+                                                    on_change=set_comp_ratio_val),
+                                            ]),
+                                    ]))),
                         Container(
-                            Column([
-                                Row([
-                                    Text(value="変換後の拡張子", width=150,
-                                         weight=font_bold, size=16),
-                                    file_types,
-                                ], width=250, alignment=MainAxisAlignment.START),
-                                Row([
-                                    Text(value="可逆圧縮", width=160,
-                                         weight=font_bold, size=16),
-                                    lossless
-                                ], width=250, alignment=MainAxisAlignment.START),
-                                Row([
-                                    comp_ratio_val_text,
-                                    compression_ratio,
-                                ], width=250, alignment=MainAxisAlignment.START),
-                            ], height=200, alignment=MainAxisAlignment.SPACE_BETWEEN), padding=20, width=300)),
-                    Container(
-                        Column([
-                            run_btn
-                        ]), padding=20),
-                ], alignment=MainAxisAlignment.SPACE_EVENLY),
-                Column([Container(log_output, padding=20,
-                       alignment=alignment.center)], height=200, scroll=ft.ScrollMode.ALWAYS),
+                            padding=20,
+                            content=Column([
+                                ElevatedButton(
+                                    ref=run_btn,
+                                    text="実行", width=180, height=150,
+                                    on_click=run_compression)
+                            ])),
+                    ]),
+                Column(
+                    scroll=ft.ScrollMode.ALWAYS,
+                    height=200,
+                    controls=[
+                        Container(
+                            alignment=alignment.center,
+                            padding=20,
+                            content=TextField(
+                                ref=log_output,
+                                label="ログ", value="-",
+                                multiline=True, read_only=True, width=600)
+                        ),
+                    ]),
             ])
     ),
+
+    # 関数で初期化したい場合は、page.add()した後でないと実行できないので注意
+    toggle_textfield_border()
+    switch_settings(ext_val)
+    page.update()
 
 
 ft.app(target=main)
