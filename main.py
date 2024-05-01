@@ -178,14 +178,17 @@ def main(page):
 
     # run
     def run_compression(e):
-        is_not_exist_path = input_path.current.value == "" or output_path.current.value == ""
-        if input_path.current.value == "":
+        # check input value
+        is_input_path_empty = input_path.current.value == ""
+        is_output_path_empty = input_path.current.value == ""
+
+        if is_input_path_empty:
             input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
             input_path.current.bgcolor = ft.colors.RED_100
-        if output_path.current.value == "":
+        if is_output_path_empty:
             output_path.current.error_text = "Output Pathにフォルダパスを入力してください"
             output_path.current.bgcolor = ft.colors.RED_100
-        if is_not_exist_path:
+        if is_input_path_empty or is_output_path_empty:
             page.update()
             return
 
@@ -201,15 +204,15 @@ def main(page):
         ratio = 100 if is_lossless else int(compression_ratio.current.value)
 
         # save json
-        save_to_json(input_dir=input_dir,
-                     output_dir=output_dir,
-                     file_ext=file_ext,
-                     ratio=ratio,
-                     is_lossless=is_lossless,
-                     )
+        save_to_json(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            file_ext=file_ext,
+            ratio=ratio,
+            is_lossless=is_lossless,
+        )
 
         # log
-        log_output.current.value = ""
         log_output.current.value = f"Input Path: {input_dir}\n"
         log_output.current.value += f"Output Path: {output_dir}\n"
         log_output.current.value += f"Format: *.{file_ext}\n"
@@ -217,6 +220,7 @@ def main(page):
             log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
             log_output.current.value += f"Compression Ratio: {ratio}%\n"
+
         run_btn.current.disabled = True
         page.add(progress_bar)
         page.update()
