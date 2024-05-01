@@ -180,7 +180,7 @@ def main(page):
     def run_compression(e):
         # check input value
         is_input_path_empty = input_path.current.value == ""
-        is_output_path_empty = input_path.current.value == ""
+        is_output_path_empty = output_path.current.value == ""
 
         if is_input_path_empty:
             input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
@@ -221,6 +221,7 @@ def main(page):
         else:
             log_output.current.value += f"Compression Ratio: {ratio}%\n"
 
+        # prevent double clicking
         run_btn.current.disabled = True
         page.add(progress_bar)
         page.update()
