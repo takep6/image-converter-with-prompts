@@ -6,15 +6,14 @@ from flet import (Card, Column, Container, Dropdown, ElevatedButton,
                   FilePicker, FilePickerResultEvent, Icon, MainAxisAlignment,
                   ProgressBar, Ref, Row, Slider, Switch, Text, TextButton,
                   TextField, alignment, colors, dropdown, icons)
+from flet_contrib.color_picker import ColorPicker
 
 import image_converter as converter
 
 """
 TODO:
-透明背景の画像は変換できるかチェック
 dpi、ビット数など画像データが問題なく変換できているかチェック
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
-コードのリファクタリング
 """
 
 
@@ -25,6 +24,7 @@ def main(page):
     EXT_KEY = "ext_path"
     COMP_RATIO_KEY = "comp_ratio"
     LOSSLESS_KEY = "lossless"
+    TRANSPARENT_KEY = "transparent_color"
     THEME_KEY = "theme_mode"
 
     # json filename
@@ -37,6 +37,7 @@ def main(page):
     init_ext_val = "webp"
     init_comp_ratio_val = 100
     init_lossless_val = False
+    init_transparent_color = "#ffffff"
     init_theme_val = "light"
 
     # create jsonfile
@@ -48,6 +49,7 @@ def main(page):
                 EXT_KEY: init_ext_val,
                 COMP_RATIO_KEY: init_comp_ratio_val,
                 LOSSLESS_KEY: init_lossless_val,
+                TRANSPARENT_KEY: init_transparent_color
             }
             json.dump(new_data, f, indent=4)
 
@@ -67,6 +69,7 @@ def main(page):
             ext_val = data[EXT_KEY]
             comp_ratio_val = data[COMP_RATIO_KEY]
             lossless_val = data[LOSSLESS_KEY]
+            transparent_color_val = data[TRANSPARENT_KEY]
 
         with open(themefile, "r")as f:
             data = json.load(f)
@@ -80,6 +83,7 @@ def main(page):
         comp_ratio_val = init_comp_ratio_val
         lossless_val = init_lossless_val
         theme_val = init_theme_val
+        transparent_color_val = init_transparent_color
 
     # page settings
     page.title = "Image Format Converter"
@@ -93,14 +97,42 @@ def main(page):
     font_bold = ft.FontWeight.BOLD
 
     # Control Ref
-    input_path = ft.Ref[TextField]()
-    output_path = ft.Ref[TextField]()
-    file_exts_dropdown = ft.Ref[Dropdown]()
-    compression_ratio = ft.Ref[Slider]()
-    compression_ratio_text = ft.Ref[Text]()
-    lossless = ft.Ref[Switch]()
-    log_output = ft.Ref[TextField]()
-    run_btn = ft.Ref[ElevatedButton]()
+    input_path = Ref[TextField]()
+    output_path = Ref[TextField]()
+    file_exts_dropdown = Ref[Dropdown]()
+    compression_ratio = Ref[Slider]()
+    compression_ratio_text = Ref[Text]()
+    lossless = Ref[Switch]()
+    log_output = Ref[TextField]()
+    run_btn = Ref[ElevatedButton]()
+
+    # ColorPicker
+    def open_color_picker(e):
+        d.open = True
+        page.update()
+
+    color_picker = ColorPicker(color=transparent_color_val, width=300)
+    transparent_color = Container(
+        width=60, height=35, border_radius=5, bgcolor=transparent_color_val, on_click=open_color_picker)
+
+    def change_color(e):
+        transparent_color.bgcolor = color_picker.color
+        d.open = False
+        page.update()
+
+    def close_dialog(e):
+        d.open = False
+        d.update()
+
+    d = ft.AlertDialog(
+        content=color_picker,
+        actions=[
+            ft.TextButton("OK", on_click=change_color),
+            ft.TextButton("Cancel", on_click=close_dialog),
+        ],
+        actions_alignment=MainAxisAlignment.END,
+    )
+    page.dialog = d
 
     # FilePicker
     def select_input_path(e: FilePickerResultEvent):
@@ -154,12 +186,15 @@ def main(page):
         if ext == "png":
             lossless.current.disabled = True
             compression_ratio.current.disabled = True
+            transparent_color.disabled = True
         elif ext == "jpg":
             lossless.current.disabled = True
             compression_ratio.current.disabled = False
+            transparent_color.disabled = False
         else:
             lossless.current.disabled = False
             compression_ratio.current.disabled = False
+            transparent_color.disabled = False
 
     def select_ext(e):
         switch_settings(e.control.value)
@@ -175,7 +210,7 @@ def main(page):
             print("この OS はサポートされていません。")
 
     # save
-    def save_to_json(input_dir, output_dir, file_ext, ratio, is_lossless):
+    def save_to_json(input_dir, output_dir, file_ext, ratio, is_lossless, transparent_color):
         with open(datafile, "w") as f:
             update_data = {
                 INPUT_KEY: input_dir,
@@ -183,6 +218,7 @@ def main(page):
                 EXT_KEY: file_ext,
                 COMP_RATIO_KEY: ratio,
                 LOSSLESS_KEY: is_lossless,
+                TRANSPARENT_KEY: transparent_color
             }
             json.dump(update_data, f, indent=4)
 
@@ -212,6 +248,7 @@ def main(page):
         else:
             is_lossless = lossless.current.value
         ratio = 100 if is_lossless else int(compression_ratio.current.value)
+        t_color = transparent_color.bgcolor
 
         # save json
         save_to_json(
@@ -220,6 +257,7 @@ def main(page):
             file_ext=file_ext,
             ratio=ratio,
             is_lossless=is_lossless,
+            transparent_color=t_color
         )
 
         # log
@@ -230,6 +268,7 @@ def main(page):
             log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
             log_output.current.value += f"Compression Ratio: {ratio}%\n"
+            log_output.current.value += f"Fill Color: {t_color}\n"
 
         # prevent double clicking
         run_btn.current.disabled = True
@@ -245,7 +284,8 @@ def main(page):
                     output_folder_path=output_path_val,
                     output_format=file_ext,
                     quality=ratio,
-                    lossless=is_lossless
+                    lossless=is_lossless,
+                    transparent_color=t_color
                 )
                 log_output.current.value += "画像の変換が完了しました"
             # フォルダ内の画像を全て処理
@@ -255,7 +295,8 @@ def main(page):
                     output_path=output_path_val,
                     output_format=file_ext,
                     quality=ratio,
-                    lossless=is_lossless
+                    lossless=is_lossless,
+                    transparent_color=t_color
                 )
                 log_output.current.value += "画像の変換が完了しました"
             else:
@@ -420,6 +461,16 @@ def main(page):
                                                     value=comp_ratio_val,
                                                     width=150, divisions=20,
                                                     on_change=set_comp_ratio_val),
+                                            ]),
+                                        Row(
+                                            alignment=MainAxisAlignment.START,
+                                            width=250,
+                                            controls=[
+                                                Text(
+                                                    value="透過部分の色",
+                                                    width=160, size=16,
+                                                    weight=font_bold),
+                                                transparent_color,
                                             ]),
                                     ]))),
                         Container(

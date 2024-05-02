@@ -30,7 +30,16 @@ def extract_metadata(image, input_path):
     return metadata
 
 
-def save_with_metadata(image, output_path, output_format, quality, metadata, lossless=False):
+def convert_with_transparent_color(image, transparent_color):
+    # 透過部分を指定した色でフィルする
+    if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+        background = Image.new("RGB", image.size, transparent_color)
+        background.paste(image, mask=image.split()[3])  # アルファチャンネルをマスクとして使用
+        image = background
+    return image
+
+
+def save_with_metadata(image, output_path, output_format, quality, metadata, lossless, transparent_color):
     if output_format.lower() == "png":
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
@@ -40,7 +49,8 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
                    quality=quality, lossless=lossless)
     elif output_format.lower() in ("jpg", "jpeg", "webp"):
         if image.mode == "RGBA":
-            image = image.convert("RGB")
+            # image = image.convert("RGB")
+            image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
         if output_format.lower() in ("jpg", "jpeg"):
@@ -53,23 +63,23 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
         raise ValueError(f"Invalid output format: {output_format}")
 
 
-def convert_image(input_path, output_folder_path, output_format, quality, lossless=False):
+def convert_image(input_path, output_folder_path, output_format, quality, lossless=False, transparent_color=(255, 255, 255)):
     with Image.open(input_path) as image:
         output_path = get_unique_filename(
             input_path, output_folder_path, output_format)
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
-                           quality, metadata, lossless)
+                           quality, metadata, lossless, transparent_color)
 
 
-def convert_images_in_folder(folder_path, output_path, output_format, quality, lossless=False):
+def convert_images_in_folder(folder_path, output_path, output_format, quality, lossless=False, transparent_color=(255, 255, 255)):
     os.makedirs(output_path, exist_ok=True)
     for root, _, files in os.walk(folder_path):
         for file in files:
             if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 input_path = os.path.join(root, file)
                 convert_image(input_path, output_path,
-                              output_format, quality, lossless)
+                              output_format, quality, lossless, transparent_color)
 
 
 def exist_images_in_folder(folder_path):
