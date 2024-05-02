@@ -333,7 +333,12 @@ def main(page):
                                     ElevatedButton(
                                         content=Icon(icons.IMAGE),
                                         width=70, height=45,
-                                        on_click=lambda _: pick_input_filepath_dialog.pick_files(allow_multiple=True, file_type=["jpeg", "jpg", "png", "webp"])),
+                                        on_click=lambda _: pick_input_filepath_dialog.pick_files(
+                                            allow_multiple=True,
+                                            file_type=ft.FilePickerFileType.IMAGE,
+                                            allowed_extensions=[
+                                                "jpeg", "jpg", "png", "webp"],
+                                        )),
                                 ]),
                             Row(
                                 alignment=MainAxisAlignment.CENTER,
