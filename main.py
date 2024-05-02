@@ -7,7 +7,7 @@ from flet import (Card, Column, Container, Dropdown, ElevatedButton,
                   ProgressBar, Ref, Row, Slider, Switch, Text, TextButton,
                   TextField, alignment, colors, dropdown, icons)
 
-import convert_to_webp as cv_webp
+import image_converter as converter
 
 """
 TODO:
@@ -239,8 +239,8 @@ def main(page):
         # Actual compression logic goes here
         try:
             # 画像ファイル単体を処理
-            if cv_webp.exist_image_path(input_path_val):
-                cv_webp.convert_image(
+            if converter.exist_image_path(input_path_val):
+                converter.convert_image(
                     input_path=input_path_val,
                     output_folder_path=output_path_val,
                     output_format=file_ext,
@@ -249,8 +249,8 @@ def main(page):
                 )
                 log_output.current.value += "画像の変換が完了しました"
             # フォルダ内の画像を全て処理
-            elif cv_webp.exist_images_in_folder(input_path_val):
-                cv_webp.convert_images_in_folder(
+            elif converter.exist_images_in_folder(input_path_val):
+                converter.convert_images_in_folder(
                     folder_path=input_path_val,
                     output_path=output_path_val,
                     output_format=file_ext,
