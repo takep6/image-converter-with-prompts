@@ -39,7 +39,7 @@ def main(page):
     init_lossless_val = False
     init_theme_val = "light"
 
-    # create data
+    # create jsonfile
     if not os.path.exists(datafile):
         with open(datafile, "w") as f:
             new_data = {
@@ -58,7 +58,7 @@ def main(page):
             }
             json.dump(new_theme, f, indent=4)
 
-    # set init values
+    # initialize values
     try:
         with open(datafile, "r")as f:
             data = json.load(f)
@@ -103,26 +103,36 @@ def main(page):
     run_btn = ft.Ref[ElevatedButton]()
 
     # FilePicker
-
     def select_input_path(e: FilePickerResultEvent):
-        input_path.current.value = e.path if e.path else ""
+        input_path.current.value = e.path if e.path else input_path.current.value
         if input_path.current.value != "":
-            input_path.current.bgcolor = colors.WHITE
+            input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
             page.client_storage.set(INPUT_KEY, input_path.current.value)
         input_path.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
-        output_path.current.value = e.path if e.path else ""
+        output_path.current.value = e.path if e.path else output_path.current.value
         if output_path.current.value != "":
-            output_path.current.bgcolor = colors.WHITE
+            output_path.current.bgcolor = colors.BACKGROUND
             output_path.current.error_text = ""
             page.client_storage.set(OUTPUT_KEY, output_path.current.value)
         output_path.current.update()
 
+    def select_input_filepath(e: FilePickerResultEvent):
+        input_path.current.value = e.files[0].path if e.files else input_path.current.value
+        if input_path.current.value != "":
+            input_path.current.bgcolor = colors.BACKGROUND
+            input_path.current.error_text = ""
+            page.client_storage.set(INPUT_KEY, input_path.current.value)
+        input_path.current.update()
+
     pick_input_path_dialog = FilePicker(on_result=select_input_path)
     pick_output_path_dialog = FilePicker(on_result=select_output_path)
-    page.overlay.extend([pick_input_path_dialog, pick_output_path_dialog])
+    pick_input_filepath_dialog = FilePicker(on_result=select_input_filepath)
+    page.overlay.extend(
+        [pick_input_path_dialog, pick_output_path_dialog, pick_input_filepath_dialog]
+    )
 
     # compression value
     def set_comp_ratio_val(e):
@@ -192,8 +202,8 @@ def main(page):
             page.update()
             return
 
-        input_dir = input_path.current.value
-        output_dir = output_path.current.value
+        input_path_val = input_path.current.value
+        output_path_val = output_path.current.value
         file_ext = file_exts_dropdown.current.value.lower()
         if file_ext == "png":
             is_lossless = True
@@ -205,16 +215,16 @@ def main(page):
 
         # save json
         save_to_json(
-            input_dir=input_dir,
-            output_dir=output_dir,
+            input_dir=input_path_val,
+            output_dir=output_path_val,
             file_ext=file_ext,
             ratio=ratio,
             is_lossless=is_lossless,
         )
 
         # log
-        log_output.current.value = f"Input Path: {input_dir}\n"
-        log_output.current.value += f"Output Path: {output_dir}\n"
+        log_output.current.value = f"Input Path: {input_path_val}\n"
+        log_output.current.value += f"Output Path: {output_path_val}\n"
         log_output.current.value += f"Format: *.{file_ext}\n"
         if is_lossless:
             log_output.current.value += f"Lossless: {is_lossless}\n"
@@ -228,18 +238,29 @@ def main(page):
 
         # Actual compression logic goes here
         try:
-            cv_webp.convert_images_in_folder(
-                folder_path=input_dir,
-                output_path=output_dir,
-                output_format=file_ext,
-                quality=ratio,
-                lossless=is_lossless
-            )
-
-            if not cv_webp.exist_images_in_folder(input_dir):
-                log_output.current.value = "画像ファイルが存在しません"
-            else:
+            # 画像ファイル単体を処理
+            if cv_webp.exist_image_path(input_path_val):
+                cv_webp.convert_image(
+                    input_path=input_path_val,
+                    output_folder_path=output_path_val,
+                    output_format=file_ext,
+                    quality=ratio,
+                    lossless=is_lossless
+                )
                 log_output.current.value += "画像の変換が完了しました"
+            # フォルダ内の画像を全て処理
+            elif cv_webp.exist_images_in_folder(input_path_val):
+                cv_webp.convert_images_in_folder(
+                    folder_path=input_path_val,
+                    output_path=output_path_val,
+                    output_format=file_ext,
+                    quality=ratio,
+                    lossless=is_lossless
+                )
+                log_output.current.value += "画像の変換が完了しました"
+            else:
+                log_output.current.value = "画像ファイルが存在しません"
+
         except Exception as e:
             log_output.current.value += "変換中にエラーが発生しました"
             log_output.current.value += str(e)
@@ -296,32 +317,40 @@ def main(page):
                     )),
                 Container(
                     padding=20,
-                    content=Column([
-                        Row(
-                            alignment=MainAxisAlignment.CENTER,
-                            controls=[
-                                TextField(
-                                    ref=input_path,
-                                    label="入力フォルダパス",
-                                    value=input_path_val, width=500),
-                                ElevatedButton(
-                                    content=Icon(icons.FOLDER_OPEN,),
-                                    width=70, height=45,
-                                    on_click=lambda _: pick_input_path_dialog.get_directory_path()),
-                            ]),
-                        Row(
-                            alignment=MainAxisAlignment.CENTER,
-                            controls=[
-                                TextField(
-                                    ref=output_path,
-                                    label="出力フォルダパス",
-                                    value=output_path_val, width=500),
-                                ElevatedButton(
-                                    content=Icon(icons.FOLDER_OPEN),
-                                    width=70, height=45,
-                                    on_click=lambda _: pick_output_path_dialog.get_directory_path()),
-                            ]),
-                    ])),
+                    content=Column(
+                        controls=[
+                            Row(
+                                alignment=MainAxisAlignment.CENTER,
+                                controls=[
+                                    TextField(
+                                        ref=input_path,
+                                        label="入力フォルダパス",
+                                        value=input_path_val, width=500),
+                                    ElevatedButton(
+                                        content=Icon(icons.FOLDER_OPEN),
+                                        width=70, height=45,
+                                        on_click=lambda _: pick_input_path_dialog.get_directory_path()),
+                                    ElevatedButton(
+                                        content=Icon(icons.IMAGE),
+                                        width=70, height=45,
+                                        on_click=lambda _: pick_input_filepath_dialog.pick_files(allow_multiple=True, file_type=["jpeg", "jpg", "png", "webp"])),
+                                ]),
+                            Row(
+                                alignment=MainAxisAlignment.CENTER,
+                                controls=[
+                                    TextField(
+                                        ref=output_path,
+                                        label="出力フォルダパス",
+                                        value=output_path_val, width=500),
+                                    ElevatedButton(
+                                        content=Icon(icons.FOLDER_OPEN),
+                                        width=70, height=45,
+                                        on_click=lambda _: pick_output_path_dialog.get_directory_path()),
+                                    Container(
+                                        width=70, height=45,
+                                    ),
+                                ]),
+                        ])),
                 Container(
                     alignment=alignment.center_right,
                     height=30, margin=ft.Margin(0, 0, 50, 0),

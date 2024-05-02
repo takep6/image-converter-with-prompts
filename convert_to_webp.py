@@ -78,3 +78,9 @@ def exist_images_in_folder(folder_path):
             if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                 return True
     return False
+
+
+def exist_image_path(image_path):
+    # 画像ファイル単体を指定した場合はこっちで処理
+    return os.path.exists(image_path) and \
+        image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
