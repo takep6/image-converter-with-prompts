@@ -1,4 +1,6 @@
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import piexif
 import piexif.helper
@@ -63,7 +65,9 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
         raise ValueError(f"Invalid output format: {output_format}")
 
 
-def convert_image(input_path, output_folder_path, output_format, quality, lossless=False, transparent_color=(255, 255, 255)):
+def convert_image(settings):
+    input_path, output_folder_path, output_format, quality, lossless, transparent_color = settings
+
     with Image.open(input_path) as image:
         output_path = get_unique_filename(
             input_path, output_folder_path, output_format)
@@ -72,14 +76,29 @@ def convert_image(input_path, output_folder_path, output_format, quality, lossle
                            quality, metadata, lossless, transparent_color)
 
 
-def convert_images_in_folder(folder_path, output_path, output_format, quality, lossless=False, transparent_color=(255, 255, 255)):
-    os.makedirs(output_path, exist_ok=True)
-    for root, _, files in os.walk(folder_path):
-        for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
-                input_path = os.path.join(root, file)
-                convert_image(input_path, output_path,
-                              output_format, quality, lossless, transparent_color)
+def convert_images_in_folder(settings):
+    input_path, output_folder_path, output_format, quality, lossless, transparent_color = settings
+
+    files = [os.path.join(input_path, file) for file in os.listdir(
+        input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+
+    # タイム測定
+    start_time = time.time()
+
+    with ThreadPoolExecutor() as executor:
+        # Submit tasks to the executor and get futures
+        futures = [executor.submit(
+            convert_image, (file, output_folder_path, output_format, quality, lossless, transparent_color)) for file in files]
+
+        # Process completed tasks
+        for future in as_completed(futures):
+            try:
+                _ = future.result()
+            except Exception as e:
+                print(f"Task generated an exception: {e}")
+
+    end_time = time.time()
+    print(f"Processing completed in {end_time - start_time} seconds.")
 
 
 def exist_images_in_folder(folder_path):
@@ -91,6 +110,5 @@ def exist_images_in_folder(folder_path):
 
 
 def exist_image_path(image_path):
-    # 画像ファイル単体を指定した場合はこっちで処理
     return os.path.exists(image_path) and \
         image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))

@@ -12,6 +12,8 @@ import image_converter as converter
 
 """
 TODO:
+avifの対応
+png, webp, avifで透過画像にするか選択できるようにする
 dpi、ビット数など画像データが問題なく変換できているかチェック
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
@@ -140,7 +142,7 @@ def main(page):
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
-            page.client_storage.set(INPUT_KEY, input_path.current.value)
+            # page.client_storage.set(INPUT_KEY, input_path.current.value)
         input_path.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
@@ -148,7 +150,7 @@ def main(page):
         if output_path.current.value != "":
             output_path.current.bgcolor = colors.BACKGROUND
             output_path.current.error_text = ""
-            page.client_storage.set(OUTPUT_KEY, output_path.current.value)
+            # page.client_storage.set(OUTPUT_KEY, output_path.current.value)
         output_path.current.update()
 
     def select_input_filepath(e: FilePickerResultEvent):
@@ -156,21 +158,23 @@ def main(page):
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
-            page.client_storage.set(INPUT_KEY, input_path.current.value)
+            # page.client_storage.set(INPUT_KEY, input_path.current.value)
         input_path.current.update()
 
     pick_input_path_dialog = FilePicker(on_result=select_input_path)
     pick_output_path_dialog = FilePicker(on_result=select_output_path)
     pick_input_filepath_dialog = FilePicker(on_result=select_input_filepath)
-    page.overlay.extend(
-        [pick_input_path_dialog, pick_output_path_dialog, pick_input_filepath_dialog]
-    )
+    page.overlay.extend([
+        pick_input_path_dialog,
+        pick_output_path_dialog,
+        pick_input_filepath_dialog
+    ])
 
     # compression value
     def set_comp_ratio_val(e):
         comp_val = int(e.control.value)
         compression_ratio.current.value = comp_val
-        compression_ratio_text.current.value = f"圧縮率: {comp_val} %"
+        compression_ratio_text.current.value = f"品質: {comp_val} %"
         if comp_val <= 30:
             compression_ratio.current.label = "ファイルサイズ 小"
         elif comp_val <= 70:
@@ -179,10 +183,11 @@ def main(page):
             compression_ratio.current.label = "ファイルサイズ 大"
         page.update()
 
+    # progress bar
     progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
 
     # format value
-    def switch_settings(ext):
+    def switch_disabled_options(ext):
         if ext == "png":
             lossless.current.disabled = True
             compression_ratio.current.disabled = True
@@ -197,7 +202,7 @@ def main(page):
             transparent_color.disabled = False
 
     def select_ext(e):
-        switch_settings(e.control.value)
+        switch_disabled_options(e.control.value)
         page.update()
 
     def open_output_dir(e):
@@ -231,6 +236,7 @@ def main(page):
         if is_input_path_empty:
             input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
             input_path.current.bgcolor = ft.colors.RED_100
+
         if is_output_path_empty:
             output_path.current.error_text = "Output Pathにフォルダパスを入力してください"
             output_path.current.bgcolor = ft.colors.RED_100
@@ -267,7 +273,7 @@ def main(page):
         if is_lossless:
             log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
-            log_output.current.value += f"Compression Ratio: {ratio}%\n"
+            log_output.current.value += f"Quality: {ratio}%\n"
             log_output.current.value += f"Fill Color: {t_color}\n"
 
         # prevent double clicking
@@ -277,27 +283,17 @@ def main(page):
 
         # Actual compression logic goes here
         try:
-            # 画像ファイル単体を処理
+            os.makedirs(output_path_val, exist_ok=True)
+            settings = (input_path_val, output_path_val,
+                        file_ext, ratio, is_lossless, t_color)
+
             if converter.exist_image_path(input_path_val):
-                converter.convert_image(
-                    input_path=input_path_val,
-                    output_folder_path=output_path_val,
-                    output_format=file_ext,
-                    quality=ratio,
-                    lossless=is_lossless,
-                    transparent_color=t_color
-                )
+                # 画像ファイル単体を処理
+                converter.convert_image(settings)
                 log_output.current.value += "画像の変換が完了しました"
-            # フォルダ内の画像を全て処理
             elif converter.exist_images_in_folder(input_path_val):
-                converter.convert_images_in_folder(
-                    folder_path=input_path_val,
-                    output_path=output_path_val,
-                    output_format=file_ext,
-                    quality=ratio,
-                    lossless=is_lossless,
-                    transparent_color=t_color
-                )
+                # フォルダ内の画像を全て処理
+                converter.convert_images_in_folder(settings)
                 log_output.current.value += "画像の変換が完了しました"
             else:
                 log_output.current.value = "画像ファイルが存在しません"
@@ -451,7 +447,7 @@ def main(page):
                                             controls=[
                                                 Text(
                                                     ref=compression_ratio_text,
-                                                    value=f"圧縮率: {comp_ratio_val} %",
+                                                    value=f"品質: {comp_ratio_val} %",
                                                     width=120, size=16,
                                                     weight=font_bold),
                                                 Slider(
@@ -500,7 +496,7 @@ def main(page):
 
     # 関数で初期化したい場合は、page.add()した後でないと実行できないので注意
     toggle_textfield_border()
-    switch_settings(ext_val)
+    switch_disabled_options(ext_val)
     page.update()
 
 
