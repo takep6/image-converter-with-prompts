@@ -142,7 +142,6 @@ def main(page):
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
-            # page.client_storage.set(INPUT_KEY, input_path.current.value)
         input_path.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
@@ -150,7 +149,6 @@ def main(page):
         if output_path.current.value != "":
             output_path.current.bgcolor = colors.BACKGROUND
             output_path.current.error_text = ""
-            # page.client_storage.set(OUTPUT_KEY, output_path.current.value)
         output_path.current.update()
 
     def select_input_filepath(e: FilePickerResultEvent):
@@ -158,7 +156,6 @@ def main(page):
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
-            # page.client_storage.set(INPUT_KEY, input_path.current.value)
         input_path.current.update()
 
     pick_input_path_dialog = FilePicker(on_result=select_input_path)
@@ -235,11 +232,18 @@ def main(page):
 
         if is_input_path_empty:
             input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
-            input_path.current.bgcolor = ft.colors.RED_100
+            input_path.current.bgcolor = colors.RED_100
+        else:
+            input_path.current.error_text = ""
+            input_path.current.bgcolor = colors.BACKGROUND
 
         if is_output_path_empty:
             output_path.current.error_text = "Output Pathにフォルダパスを入力してください"
-            output_path.current.bgcolor = ft.colors.RED_100
+            output_path.current.bgcolor = colors.RED_100
+        else:
+            output_path.current.error_text = ""
+            output_path.current.bgcolor = colors.BACKGROUND
+
         if is_input_path_empty or is_output_path_empty:
             page.update()
             return
