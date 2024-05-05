@@ -13,12 +13,7 @@ import image_converter as converter
 """
 TODO:
 avifの対応
-png, webp, avifで透過画像にするか選択できるようにする
-プロンプトを残すかどうか選択できるようにする？
-dpi、ビット数など画像データが問題なく変換できているかチェック
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
-
-FEATURE: dpiの設定を変えずに変換できるようにする
 """
 
 
@@ -29,13 +24,13 @@ def main(page):
     EXT_KEY = "ext_path"
     COMP_RATIO_KEY = "comp_ratio"
     LOSSLESS_KEY = "lossless"
-    TRANSPARENCT_KEY = "transparency"
+    Fill_TRANSPARENT_KEY = "fill_transparent"
     TRANSPARENT_COLOR_KEY = "transparent_color"
     THEME_KEY = "theme_mode"
 
     # json filename
-    datafile = "data.json"
-    themefile = "theme.json"
+    datafile = "./assets/data.json"
+    themefile = "./assets/theme.json"
 
     # init values
     init_input_path_val = ""
@@ -43,7 +38,7 @@ def main(page):
     init_ext_val = "webp"
     init_comp_ratio_val = 100
     init_lossless_val = False
-    init_transparency_val = False
+    init_fill_transparent_val = False
     init_transparent_color = "#ffffff"
     init_theme_val = "light"
 
@@ -56,7 +51,7 @@ def main(page):
                 EXT_KEY: init_ext_val,
                 COMP_RATIO_KEY: init_comp_ratio_val,
                 LOSSLESS_KEY: init_lossless_val,
-                TRANSPARENCT_KEY: init_transparency_val,
+                Fill_TRANSPARENT_KEY: init_fill_transparent_val,
                 TRANSPARENT_COLOR_KEY: init_transparent_color
             }
             json.dump(new_data, f, indent=4)
@@ -77,7 +72,7 @@ def main(page):
             ext_val = data[EXT_KEY]
             comp_ratio_val = data[COMP_RATIO_KEY]
             lossless_val = data[LOSSLESS_KEY]
-            transparency_val = data[TRANSPARENCT_KEY]
+            fill_transparent_val = data[Fill_TRANSPARENT_KEY]
             transparent_color_val = data[TRANSPARENT_COLOR_KEY]
 
         with open(themefile, "r")as f:
@@ -92,11 +87,11 @@ def main(page):
         comp_ratio_val = init_comp_ratio_val
         lossless_val = init_lossless_val
         theme_val = init_theme_val
-        transparency_val = init_transparency_val
+        fill_transparent_val = init_fill_transparent_val
         transparent_color_val = init_transparent_color
 
     # page settings
-    page.title = "Image Format Converter"
+    page.title = "Image Converter with prompt"
     page.theme_mode = theme_val
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 30
@@ -115,7 +110,7 @@ def main(page):
     lossless = Ref[Switch]()
     log_output = Ref[TextField]()
     run_btn = Ref[ElevatedButton]()
-    is_fill_transparenct = Ref[Checkbox]()
+    is_fill_transparent = Ref[Checkbox]()
 
     # ColorPicker
     def open_color_picker(e):
@@ -124,7 +119,9 @@ def main(page):
 
     color_picker = ColorPicker(color=transparent_color_val, width=300)
     transparent_color = Container(
-        width=60, height=35, border_radius=5, bgcolor=transparent_color_val, on_click=open_color_picker)
+        width=60, height=35, border_radius=5,
+        bgcolor=transparent_color_val,
+        on_click=open_color_picker)
 
     def change_color(e):
         transparent_color.bgcolor = color_picker.color
@@ -147,21 +144,24 @@ def main(page):
 
     # FilePicker
     def select_input_path(e: FilePickerResultEvent):
-        input_path.current.value = e.path if e.path else input_path.current.value
+        input_path.current.value = e.path if e.path \
+            else input_path.current.value
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
         input_path.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
-        output_path.current.value = e.path if e.path else output_path.current.value
+        output_path.current.value = e.path if e.path \
+            else output_path.current.value
         if output_path.current.value != "":
             output_path.current.bgcolor = colors.BACKGROUND
             output_path.current.error_text = ""
         output_path.current.update()
 
     def select_input_filepath(e: FilePickerResultEvent):
-        input_path.current.value = e.files[0].path if e.files else input_path.current.value
+        input_path.current.value = e.files[0].path \
+            if e.files else input_path.current.value
         if input_path.current.value != "":
             input_path.current.bgcolor = colors.BACKGROUND
             input_path.current.error_text = ""
@@ -210,17 +210,17 @@ def main(page):
             set_comp_ratio(100)
             set_comp_ratio_to_text(100)
             compression_ratio.current.disabled = True
-            is_fill_transparenct.current.disabled = False
+            is_fill_transparent.current.disabled = False
         elif ext == "jpg":
             lossless.current.value = False
             lossless.current.disabled = True
             compression_ratio.current.disabled = False
-            is_fill_transparenct.current.value = True
-            is_fill_transparenct.current.disabled = True
+            is_fill_transparent.current.value = True
+            is_fill_transparent.current.disabled = True
         else:
             lossless.current.disabled = False
             compression_ratio.current.disabled = False
-            is_fill_transparenct.current.disabled = False
+            is_fill_transparent.current.disabled = False
 
     def select_ext(e):
         switch_options_value(e.control.value)
@@ -236,7 +236,8 @@ def main(page):
             print("この OS はサポートされていません。")
 
     # save
-    def save_to_json(input_dir, output_dir, file_ext, ratio, is_lossless, is_fill_transparenct, transparent_color):
+    def save_to_json(input_dir, output_dir, file_ext, ratio,
+                     is_lossless, is_fill_transparent, transparent_color):
         with open(datafile, "w") as f:
             update_data = {
                 INPUT_KEY: input_dir,
@@ -244,7 +245,7 @@ def main(page):
                 EXT_KEY: file_ext,
                 COMP_RATIO_KEY: ratio,
                 LOSSLESS_KEY: is_lossless,
-                TRANSPARENCT_KEY: is_fill_transparenct,
+                Fill_TRANSPARENT_KEY: is_fill_transparent,
                 TRANSPARENT_COLOR_KEY: transparent_color
             }
             json.dump(update_data, f, indent=4)
@@ -283,7 +284,7 @@ def main(page):
         else:
             is_lossless = lossless.current.value
         ratio = 100 if is_lossless else int(compression_ratio.current.value)
-        is_fill_transparenct_val = is_fill_transparenct.current.value
+        is_fill_transparent_val = is_fill_transparent.current.value
         t_color = transparent_color.bgcolor
 
         # save json
@@ -293,7 +294,7 @@ def main(page):
             file_ext=file_ext,
             ratio=ratio,
             is_lossless=is_lossless,
-            is_fill_transparenct=is_fill_transparenct_val,
+            is_fill_transparent=is_fill_transparent_val,
             transparent_color=t_color
         )
 
@@ -305,7 +306,7 @@ def main(page):
             log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
             log_output.current.value += f"Quality: {ratio}%\n"
-        if is_fill_transparenct_val:
+        if is_fill_transparent_val:
             log_output.current.value += f"Fill Color: {t_color}\n"
 
         # prevent double clicking
@@ -317,7 +318,8 @@ def main(page):
         try:
             os.makedirs(output_path_val, exist_ok=True)
             settings = (input_path_val, output_path_val,
-                        file_ext, ratio, is_lossless, is_fill_transparenct_val, t_color)
+                        file_ext, ratio, is_lossless,
+                        is_fill_transparent_val, t_color)
 
             if converter.exist_image_path(input_path_val):
                 # 画像ファイル単体を処理
@@ -340,7 +342,8 @@ def main(page):
 
     # toggle theme
     def toggle_textfield_border():
-        border_color = colors.BLACK if page.theme_mode == "light" else colors.BLUE_600
+        border_color = colors.BLACK if page.theme_mode == "light" \
+            else colors.BLUE_600
         input_path.current.border_color = border_color
         output_path.current.border_color = border_color
         log_output.current.border_color = border_color
@@ -362,8 +365,8 @@ def main(page):
         icon=icons.DARK_MODE, on_click=toggle_theme)
 
     def toggle_transparency(e):
-        is_fill_transparenct.current.value = e.control.value
-        is_fill_transparenct.current.update()
+        is_fill_transparent.current.value = e.control.value
+        is_fill_transparent.current.update()
 
     # page layout
     page.add(
@@ -514,8 +517,8 @@ def main(page):
                                                         width=150, size=16,
                                                         weight=font_bold),
                                                     Checkbox(
-                                                        ref=is_fill_transparenct,
-                                                        value=transparency_val,
+                                                        ref=is_fill_transparent,
+                                                        value=fill_transparent_val,
                                                         width=80,
                                                         on_change=toggle_transparency
                                                     ),
