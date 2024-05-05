@@ -43,7 +43,6 @@ output/
 *.jpg
 *.jpeg
 *.webp
-*.json
 
 # Installer logs
 pip-log.txt
