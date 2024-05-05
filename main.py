@@ -305,7 +305,7 @@ def main(page):
             log_output.current.value += f"Lossless: {is_lossless}\n"
         else:
             log_output.current.value += f"Quality: {ratio}%\n"
-        if is_fill_transparenct:
+        if is_fill_transparenct_val:
             log_output.current.value += f"Fill Color: {t_color}\n"
 
         # prevent double clicking
@@ -446,7 +446,7 @@ def main(page):
                                 alignment=alignment.center,
                                 content=Column(
                                     alignment=MainAxisAlignment.SPACE_BETWEEN,
-                                    height=280,
+                                    height=180,
                                     controls=[
                                         Row(
                                             alignment=MainAxisAlignment.START,
@@ -497,41 +497,50 @@ def main(page):
                                                     width=140, divisions=20,
                                                     on_change=change_comp_ratio),
                                             ]),
-                                        Row(
-                                            alignment=MainAxisAlignment.START,
-                                            width=250,
-                                            controls=[
-                                                Text(
-                                                    value="透過部分を塗りつぶす",
-                                                    width=150, size=16,
-                                                    weight=font_bold),
-                                                Checkbox(
-                                                    ref=is_fill_transparenct,
-                                                    value=transparency_val,
-                                                    width=80,
-                                                    on_change=toggle_transparency
-                                                ),
-                                            ]),
-                                        Row(
-                                            alignment=MainAxisAlignment.START,
-                                            width=250,
-                                            controls=[
-                                                Text(
-                                                    value="透過部分の色",
-                                                    width=160, size=16,
-                                                    weight=font_bold),
-                                                transparent_color,
-                                            ]),
-
                                     ]))),
-                        Container(
-                            padding=20,
-                            content=Column([
-                                ElevatedButton(
-                                    ref=run_btn,
-                                    text="実行", width=180, height=150,
-                                    on_click=run_compression)
-                            ])),
+                        Column(
+                            controls=[
+                                Card(
+                                    Container(
+                                        padding=20, width=350,
+                                        alignment=alignment.center,
+                                        content=Column([
+                                            Row(
+                                                alignment=MainAxisAlignment.START,
+                                                width=250,
+                                                controls=[
+                                                    Text(
+                                                        value="透過部分を塗りつぶす",
+                                                        width=150, size=16,
+                                                        weight=font_bold),
+                                                    Checkbox(
+                                                        ref=is_fill_transparenct,
+                                                        value=transparency_val,
+                                                        width=80,
+                                                        on_change=toggle_transparency
+                                                    ),
+                                                ]),
+                                            Row(
+                                                alignment=MainAxisAlignment.START,
+                                                width=250,
+                                                controls=[
+                                                    Text(
+                                                        value="透過部分の色",
+                                                        width=160, size=16,
+                                                        weight=font_bold),
+                                                    transparent_color,
+                                                ]),
+                                        ]),
+                                    )),
+                                Container(
+                                    padding=20, width=350, alignment=alignment.center,
+                                    content=Column([
+                                        ElevatedButton(
+                                            ref=run_btn,
+                                            text="実行", width=200, height=60,
+                                            on_click=run_compression)
+                                    ])),
+                            ]),
                     ]),
                 Column(
                     scroll=ft.ScrollMode.ALWAYS,
