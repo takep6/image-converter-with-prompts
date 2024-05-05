@@ -41,43 +41,52 @@ def convert_with_transparent_color(image, transparent_color):
     return image
 
 
-def save_with_metadata(image, output_path, output_format, quality, metadata, lossless, transparent_color):
+def save_with_metadata(image, output_path, output_format, quality, metadata, lossless, is_fill_transparenct, transparent_color):
+    """
+    画像を指定の拡張子で保存する
+    is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
+    """
     if output_format.lower() == "png":
+        if is_fill_transparenct:
+            image = convert_with_transparent_color(image, transparent_color)
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
         image.save(output_path, format="PNG", pnginfo=metadata_obj,
                    quality=quality, lossless=lossless)
-    elif output_format.lower() in ("jpg", "jpeg", "webp"):
+    elif output_format.lower() in ("jpg", "jpeg"):
         if image.mode == "RGBA":
-            # image = image.convert("RGB")
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        if output_format.lower() in ("jpg", "jpeg"):
-            image.save(output_path, format="JPEG", quality=quality,
-                       optimize=True, exif=exif_bytes, lossless=lossless)
-        else:
-            image.save(output_path, format="WEBP", quality=quality,
-                       exif=exif_bytes, lossless=lossless)
+        image.save(output_path, format="JPEG", quality=quality,
+                   optimize=True, exif=exif_bytes, lossless=lossless)
+    elif output_format.lower() in ("webp"):
+        if is_fill_transparenct:
+            image = convert_with_transparent_color(image, transparent_color)
+        exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
+            metadata.get("parameters", ""), encoding="unicode")}})
+        image.save(output_path, format="WEBP", quality=quality,
+                   exif=exif_bytes, lossless=lossless)
+
     else:
         raise ValueError(f"Invalid output format: {output_format}")
 
 
 def convert_image(settings):
-    input_path, output_folder_path, output_format, quality, lossless, transparent_color = settings
+    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
     with Image.open(input_path) as image:
         output_path = get_unique_filename(
             input_path, output_folder_path, output_format)
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
-                           quality, metadata, lossless, transparent_color)
+                           quality, metadata, lossless, is_fill_transparenct, transparent_color)
 
 
 def convert_images_in_folder(settings):
-    input_path, output_folder_path, output_format, quality, lossless, transparent_color = settings
+    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
     files = [os.path.join(input_path, file) for file in os.listdir(
         input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
@@ -88,7 +97,7 @@ def convert_images_in_folder(settings):
     with ThreadPoolExecutor() as executor:
         # Submit tasks to the executor and get futures
         futures = [executor.submit(
-            convert_image, (file, output_folder_path, output_format, quality, lossless, transparent_color)) for file in files]
+            convert_image, (file, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color)) for file in files]
 
         # Process completed tasks
         for future in as_completed(futures):
