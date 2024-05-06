@@ -12,6 +12,9 @@ import image_converter as converter
 
 """
 TODO:
+途中で停止する機能の実装
+フォルダ内の全てのフォルダを変換する機能を実装する？
+CPUを使いすぎない方法はある？
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
 
@@ -573,4 +576,5 @@ def main(page):
     page.update()
 
 
-ft.app(target=main)
+if __name__ == "__main__":
+    ft.app(target=main)

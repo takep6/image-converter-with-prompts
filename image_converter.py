@@ -1,6 +1,7 @@
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
+                                as_completed)
 
 import piexif
 import piexif.helper
@@ -105,7 +106,7 @@ def convert_images_in_folder(settings):
     # タイム測定
     start_time = time.time()
 
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         # Submit tasks to the executor and get futures
         futures = [executor.submit(
             convert_image, (file, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color)) for file in files]
