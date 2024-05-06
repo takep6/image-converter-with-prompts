@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import piexif
 import piexif.helper
+import pillow_avif
 from PIL import Image, PngImagePlugin
 
 
@@ -22,7 +23,7 @@ def extract_metadata(image, input_path):
     metadata = {}
     if input_path.lower().endswith("png"):
         metadata = image.info
-    elif input_path.lower().endswith(("jpg", "jpeg", "webp")):
+    elif input_path.lower().endswith(("jpg", "jpeg", "webp", "avif")):
         if "exif" in image.info.keys():
             exif_dict = piexif.load(image.info["exif"])
             if piexif.ExifIFD.UserComment in exif_dict["Exif"]:
@@ -69,6 +70,16 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
             metadata.get("parameters", ""), encoding="unicode")}})
         image.save(output_path, format="WEBP", quality=quality,
                    exif=exif_bytes, lossless=lossless)
+    elif output_format.lower() in ("avif"):
+        image.encoderinfo = {}
+        image.encoderinfo['alpha_premultiplied'] = False
+        image.encoderinfo['autotiling'] = True
+        if is_fill_transparenct:
+            image = convert_with_transparent_color(image, transparent_color)
+        exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
+            metadata.get("parameters", ""), encoding="unicode")}})
+        image.save(output_path, format="AVIF", quality=quality,
+                   exif=exif_bytes, lossless=lossless)
 
     else:
         raise ValueError(f"Invalid output format: {output_format}")
@@ -89,7 +100,7 @@ def convert_images_in_folder(settings):
     input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
     files = [os.path.join(input_path, file) for file in os.listdir(
-        input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+        input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))]
 
     # タイム測定
     start_time = time.time()
@@ -113,11 +124,11 @@ def convert_images_in_folder(settings):
 def exist_images_in_folder(folder_path):
     for root, _, files in os.walk(folder_path):
         for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
                 return True
     return False
 
 
 def exist_image_path(image_path):
     return os.path.exists(image_path) and \
-        image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
+        image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))

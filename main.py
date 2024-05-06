@@ -12,7 +12,6 @@ import image_converter as converter
 
 """
 TODO:
-avifの対応
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
 
@@ -29,8 +28,10 @@ def main(page):
     THEME_KEY = "theme_mode"
 
     # json filename
-    datafile = "./assets/data.json"
-    themefile = "./assets/theme.json"
+    # datafile = f"{os.getcwd()}/assets/data.json"
+    # themefile = f"{os.getcwd()}/assets/theme.json"
+    datafile = f"{os.getcwd()}/data.json"
+    themefile = f"{os.getcwd()}/theme.json"
 
     # init values
     init_input_path_val = ""
@@ -390,7 +391,7 @@ def main(page):
                                     Text("AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します"),
                                     Text(
                                         "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプト、またはその他のメタデータは保存されません"),
-                                    Text("jpg, png, webp形式に対応しています"),
+                                    Text("jpg, png, webp, avif形式に対応しています"),
                                 ])),
                     )),
                 Container(
@@ -415,7 +416,7 @@ def main(page):
                                             allow_multiple=True,
                                             file_type=ft.FilePickerFileType.IMAGE,
                                             allowed_extensions=[
-                                                "jpeg", "jpg", "png", "webp"],
+                                                "jpeg", "jpg", "png", "webp", "avif"],
                                         )),
                                 ]),
                             Row(
@@ -467,6 +468,8 @@ def main(page):
                                                         dropdown.Option("png"),
                                                         dropdown.Option(
                                                             "webp"),
+                                                        dropdown.Option(
+                                                            "avif"),
                                                     ],
                                                     width=80,
                                                     on_change=select_ext
