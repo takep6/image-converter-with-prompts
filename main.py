@@ -27,11 +27,14 @@ def main(page):
     TRANSPARENT_COLOR_KEY = "transparent_color"
     THEME_KEY = "theme_mode"
 
+    assets_dir = f"{os.getcwd()}/assets"
+    os.makedirs(assets_dir, exist_ok=True)
     # json filename
-    # datafile = f"{os.getcwd()}/assets/data.json"
-    # themefile = f"{os.getcwd()}/assets/theme.json"
-    datafile = f"{os.getcwd()}/data.json"
-    themefile = f"{os.getcwd()}/theme.json"
+    datafile = os.path.join(assets_dir, "data.json")
+    themefile = os.path.join(assets_dir, "theme.json")
+    # test
+    # datafile = f"{os.getcwd()}/data.json"
+    # themefile = f"{os.getcwd()}/theme.json"
 
     # init values
     init_input_path_val = ""
