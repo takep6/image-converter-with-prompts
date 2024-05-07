@@ -1,4 +1,6 @@
+import multiprocessing as mp
 import os
+import threading
 import time
 from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
                                 as_completed)
@@ -6,17 +8,18 @@ from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
 import piexif
 import piexif.helper
 import pillow_avif
+import psutil
 from PIL import Image, PngImagePlugin
 
 
-def get_unique_filename(input_path, output_folder_path, output_format):
+def get_unique_filename(input_path, output_folder_path, output_format, counter=0):
     basename = os.path.basename(input_path)
     filename, _ = os.path.splitext(basename)
-    output_path = f"{output_folder_path}/{filename}.{output_format}"
-    counter = 1
+    output_path = f"{output_folder_path}/{filename}_{counter:05d}.{output_format}"
+    dup_count = 1
     while os.path.exists(output_path):
-        output_path = f"{output_folder_path}/{filename}_{counter:03d}.{output_format}"
-        counter += 1
+        output_path = f"{output_folder_path}/{filename}_{counter:05d}-{dup_count:02d}.{output_format}"
+        dup_count += 1
     return output_path
 
 
@@ -87,39 +90,96 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
 
 
 def convert_image(settings):
-    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
-
+    input_path, output_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
     with Image.open(input_path) as image:
-        output_path = get_unique_filename(
-            input_path, output_folder_path, output_format)
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless, is_fill_transparenct, transparent_color)
 
 
 def convert_images_in_folder(settings):
+    global should_stop
+    should_stop = False
+    cpu_num = psutil.cpu_count(logical=False)
+
     input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
-    files = [os.path.join(input_path, file) for file in os.listdir(
-        input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))]
+    # 画像ファイル単体の場合
+    if output_folder_path.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+        output_path = get_unique_filename(
+            input_path, output_folder_path, output_format)
+        convert_image((input_path, output_path, output_format,
+                      quality, lossless, is_fill_transparenct, transparent_color))
+    else:
 
-    # タイム測定
-    start_time = time.time()
+        files = [os.path.join(input_path, file) for file in os.listdir(
+            input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))]
 
-    with ProcessPoolExecutor() as executor:
-        # Submit tasks to the executor and get futures
-        futures = [executor.submit(
-            convert_image, (file, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color)) for file in files]
+        output_pathes = []
+        for i, file in enumerate(files):
+            path = get_unique_filename(
+                file, output_folder_path, output_format, i+1)
+            output_pathes.append(path)
 
-        # Process completed tasks
-        for future in as_completed(futures):
+        start_time = time.time()
+
+        with ProcessPoolExecutor(max_workers=cpu_num) as executor:
+            futures = []
+            for file, output_path in zip(files, output_pathes):
+                if not should_stop:
+                    futures.append(
+                        executor.submit(
+                            convert_image,
+                            (file, output_path, output_format, quality,
+                                lossless, is_fill_transparenct, transparent_color)))
+                else:
+                    break
+
             try:
-                _ = future.result()
+                for future in as_completed(futures):
+                    if not should_stop:
+                        _ = future.result()
+                    else:
+                        executor.shutdown(wait=False)  # 実行中のタスクを強制終了
+                        raise Exception("画像の変換を停止しました")
             except Exception as e:
                 print(f"Task generated an exception: {e}")
 
-    end_time = time.time()
-    print(f"Processing completed in {end_time - start_time} seconds.")
+                # Futureをキャンセル
+                for future in futures:
+                    if not future.running():
+                        future.cancel()
+
+                # futureの状態を確認
+                for future in futures:
+                    print(
+                        f"running: {future.running()}, cancelled: {future.cancelled()}")
+
+                # プロセスを強制終了
+                for process in executor._processes.values():
+                    process.kill()
+
+                print("----------")
+                # futureの状態を確認
+                for future in futures:
+                    print(
+                        f"running: {future.running()}, cancelled: {future.cancelled()}")
+
+        end_time = time.time()
+
+        if not should_stop:
+            print(f"Processing completed in {end_time - start_time} seconds.")
+
+
+# スクリプトを停止するためのグローバル変数とロックオブジェクト
+should_stop = False
+stop_lock = threading.Lock()
+
+
+def stop_script():
+    global should_stop
+    with stop_lock:
+        should_stop = True
 
 
 def exist_images_in_folder(folder_path):
@@ -133,3 +193,11 @@ def exist_images_in_folder(folder_path):
 def exist_image_path(image_path):
     return os.path.exists(image_path) and \
         image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))
+
+
+# cpu 5
+# Processing completed in 26.95889377593994 seconds.
+# cpu 8
+# Processing completed in 24.521414041519165 seconds.
+# cpu 4
+# Processing completed in 30.149391651153564 seconds.

@@ -12,9 +12,8 @@ import image_converter as converter
 
 """
 TODO:
-途中で停止する機能の実装
 フォルダ内の全てのフォルダを変換する機能を実装する？
-CPUを使いすぎない方法はある？
+CPUを使いすぎない方法はある？->cpuの使用数で調節
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
 
@@ -117,9 +116,11 @@ def main(page):
     lossless = Ref[Switch]()
     log_output = Ref[TextField]()
     run_btn = Ref[ElevatedButton]()
+    stop_btn = Ref[ElevatedButton]()
     is_fill_transparent = Ref[Checkbox]()
 
     # ColorPicker
+
     def open_color_picker(e):
         d.open = True
         page.update()
@@ -318,6 +319,7 @@ def main(page):
 
         # prevent double clicking
         run_btn.current.disabled = True
+        stop_btn.current.disabled = False
         page.add(progress_bar)
         page.update()
 
@@ -340,12 +342,17 @@ def main(page):
                 log_output.current.value = "画像ファイルが存在しません"
 
         except Exception as e:
-            log_output.current.value += "変換中にエラーが発生しました"
+            log_output.current.value += "変換中にエラーが発生しました\n"
             log_output.current.value += str(e)
         finally:
             page.remove(progress_bar)
             run_btn.current.disabled = False
+            stop_btn.current.disabled = True
             page.update()
+
+    # stop
+    def stop_compression(e):
+        converter.stop_script()
 
     # toggle theme
     def toggle_textfield_border():
@@ -545,13 +552,22 @@ def main(page):
                                         ]),
                                     )),
                                 Container(
-                                    padding=20, width=350, alignment=alignment.center,
-                                    content=Column([
-                                        ElevatedButton(
-                                            ref=run_btn,
-                                            text="実行", width=200, height=60,
-                                            on_click=run_compression)
-                                    ])),
+                                    padding=20, alignment=alignment.center, content=Row(
+                                        controls=[
+                                            ElevatedButton(
+                                                ref=run_btn,
+                                                icon=icons.PLAY_ARROW,
+                                                text="実行", width=200, height=60,
+                                                on_click=run_compression),
+                                            ElevatedButton(
+                                                ref=stop_btn,
+                                                icon=icons.STOP, text="停止",
+                                                width=110, height=60,
+                                                on_click=stop_compression)
+                                        ]),
+                                )
+
+
                             ]),
                     ]),
                 Column(
@@ -573,6 +589,7 @@ def main(page):
     # 関数で初期化したい場合は、page.add()した後でないと実行できないので注意
     toggle_textfield_border()
     switch_options_value(ext_val)
+    stop_btn.current.disabled = True
     page.update()
 
 

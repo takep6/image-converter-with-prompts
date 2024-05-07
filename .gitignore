@@ -31,6 +31,7 @@ share/python-wheels/
 MANIFEST
 input/
 output/
+assets/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
