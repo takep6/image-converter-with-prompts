@@ -47,6 +47,7 @@ def main(page):
     init_fill_transparent_val = False
     init_transparent_color = "#ffffff"
     init_theme_val = "light"
+    init_cpu_num = psutil.cpu_count(logical=False)
 
     # create jsonfile
     if not os.path.exists(datafile):
@@ -120,7 +121,6 @@ def main(page):
     is_fill_transparent = Ref[Checkbox]()
 
     # ColorPicker
-
     def open_color_picker(e):
         d.open = True
         page.update()
@@ -375,12 +375,21 @@ def main(page):
             }
             json.dump(update_theme, f, indent=4)
 
+    # theme
     page.floating_action_button = ft.FloatingActionButton(
         icon=icons.DARK_MODE, on_click=toggle_theme)
 
     def toggle_transparency(e):
         is_fill_transparent.current.value = e.control.value
         is_fill_transparent.current.update()
+
+    # quit app
+    def on_window_close(e):
+        if e.data == "close":
+            converter.stop_script()
+            print("アプリケーションを終了します")
+
+    page.on_window_event = on_window_close
 
     # page layout
     page.add(
@@ -401,9 +410,10 @@ def main(page):
                             padding=20,
                             content=Column(
                                 controls=[
-                                    Text("AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します"),
                                     Text(
-                                        "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプト、またはその他のメタデータは保存されません"),
+                                        "AI生成画像のプロンプトを残したまま画像ファイルの拡張子を変換します（アニメーションは非対応）"),
+                                    Text(
+                                        "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプトやその他のメタデータは保存されません"),
                                     Text("jpg, png, webp, avif形式に対応しています"),
                                 ])),
                     )),

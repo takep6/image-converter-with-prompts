@@ -1,9 +1,7 @@
-import multiprocessing as mp
 import os
 import threading
 import time
-from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
-                                as_completed)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import piexif
 import piexif.helper
@@ -13,12 +11,14 @@ from PIL import Image, PngImagePlugin
 
 
 def get_unique_filename(input_path, output_folder_path, output_format, counter=0):
+    # inputフォルダ内の同じファイル（拡張子名が違う）の重複対策
     basename = os.path.basename(input_path)
     filename, _ = os.path.splitext(basename)
-    output_path = f"{output_folder_path}/{filename}_{counter:05d}.{output_format}"
+    output_path = f"{output_folder_path}/{filename}-{counter:05d}.{output_format}"
+    # outputフォルダ内のファイル重複チェック
     dup_count = 1
     while os.path.exists(output_path):
-        output_path = f"{output_folder_path}/{filename}_{counter:05d}-{dup_count:02d}.{output_format}"
+        output_path = f"{output_folder_path}/{filename}-{counter:05d}_{dup_count:02d}.{output_format}"
         dup_count += 1
     return output_path
 
@@ -155,15 +155,16 @@ def convert_images_in_folder(settings):
                     print(
                         f"running: {future.running()}, cancelled: {future.cancelled()}")
 
-                # プロセスを強制終了
-                for process in executor._processes.values():
-                    process.kill()
+                # プロセスに終了要求
+                processes = executor._processes.values()
+                for process in processes:
+                    process.terminate()
 
-                print("----------")
-                # futureの状態を確認
-                for future in futures:
-                    print(
-                        f"running: {future.running()}, cancelled: {future.cancelled()}")
+                gone, alive = psutil.wait_procs(
+                    executor._processes.values(), timeout=5)
+                for p in alive:
+                    print("プロセスを強制終了しました", p)
+                    p.kill()
 
         end_time = time.time()
 
@@ -193,11 +194,3 @@ def exist_images_in_folder(folder_path):
 def exist_image_path(image_path):
     return os.path.exists(image_path) and \
         image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))
-
-
-# cpu 5
-# Processing completed in 26.95889377593994 seconds.
-# cpu 8
-# Processing completed in 24.521414041519165 seconds.
-# cpu 4
-# Processing completed in 30.149391651153564 seconds.
