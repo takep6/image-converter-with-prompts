@@ -16,7 +16,6 @@ TODO:
 フォルダ内の全てのフォルダを変換する機能を実装する？
 CPUを使いすぎない方法はある？->cpuの使用数で調節
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
-スライダー作成・navigationdrawer作成・jsonへの保存設定・マルチプロセスのキル
 """
 
 
@@ -242,6 +241,15 @@ def main(page):
     def select_ext(e):
         switch_options_value(e.control.value)
         page.update()
+
+    def open_input_dir(e):
+        # OS によって適切なコマンドを使ってフォルダを開く
+        if os.name == 'nt':  # Windows の場合
+            os.system(f'explorer "{input_path.current.value}"')
+        elif os.name == 'posix':  # macOS や Linux の場合
+            os.system(f'open "{input_path.current.value}"')
+        else:
+            print("この OS はサポートされていません。")
 
     def open_output_dir(e):
         # OS によって適切なコマンドを使ってフォルダを開く
@@ -525,11 +533,21 @@ def main(page):
                                         width=70, height=45,
                                     ),
                                 ]),
-                            Container(
-                                alignment=alignment.center_right,
-                                height=25, margin=ft.Margin(0, 0, 30, 0),
-                                content=TextButton(
-                                    "出力フォルダを開く", on_click=open_output_dir)),
+                            Row(
+                                alignment=MainAxisAlignment.END,
+                                controls=[
+                                    Container(
+                                        alignment=alignment.center_right,
+                                        height=25,
+                                        content=TextButton(
+                                            "入力フォルダを開く", on_click=open_input_dir)),
+                                    Container(
+                                        alignment=alignment.center_right,
+                                        height=25, margin=ft.Margin(0, 0, 30, 0),
+                                        content=TextButton(
+                                            "出力フォルダを開く", on_click=open_output_dir)),
+                                ]),
+
                         ])),
 
                 Row(
