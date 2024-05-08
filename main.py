@@ -2,6 +2,7 @@ import json
 import os
 
 import flet as ft
+import psutil
 from flet import (Card, Checkbox, Column, Container, Dropdown, ElevatedButton,
                   FilePicker, FilePickerResultEvent, Icon, MainAxisAlignment,
                   ProgressBar, Ref, Row, Slider, Switch, Text, TextButton,
@@ -15,6 +16,7 @@ TODO:
 フォルダ内の全てのフォルダを変換する機能を実装する？
 CPUを使いすぎない方法はある？->cpuの使用数で調節
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
+スライダー作成・navigationdrawer作成・jsonへの保存設定・マルチプロセスのキル
 """
 
 
@@ -28,6 +30,7 @@ def main(page):
     Fill_TRANSPARENT_KEY = "fill_transparent"
     TRANSPARENT_COLOR_KEY = "transparent_color"
     THEME_KEY = "theme_mode"
+    CPU_NUM_KEY = "cpu_num"
 
     assets_dir = f"{os.getcwd()}/assets"
     os.makedirs(assets_dir, exist_ok=True)
@@ -48,6 +51,7 @@ def main(page):
     init_transparent_color = "#ffffff"
     init_theme_val = "light"
     init_cpu_num = psutil.cpu_count(logical=False)
+    max_cpu_num = psutil.cpu_count(logical=True)
 
     # create jsonfile
     if not os.path.exists(datafile):
@@ -59,7 +63,8 @@ def main(page):
                 COMP_RATIO_KEY: init_comp_ratio_val,
                 LOSSLESS_KEY: init_lossless_val,
                 Fill_TRANSPARENT_KEY: init_fill_transparent_val,
-                TRANSPARENT_COLOR_KEY: init_transparent_color
+                TRANSPARENT_COLOR_KEY: init_transparent_color,
+                CPU_NUM_KEY: init_cpu_num
             }
             json.dump(new_data, f, indent=4)
 
@@ -81,6 +86,7 @@ def main(page):
             lossless_val = data[LOSSLESS_KEY]
             fill_transparent_val = data[Fill_TRANSPARENT_KEY]
             transparent_color_val = data[TRANSPARENT_COLOR_KEY]
+            cpu_num_val = data[CPU_NUM_KEY]
 
         with open(themefile, "r")as f:
             data = json.load(f)
@@ -96,6 +102,7 @@ def main(page):
         theme_val = init_theme_val
         fill_transparent_val = init_fill_transparent_val
         transparent_color_val = init_transparent_color
+        cpu_num_val = init_cpu_num
 
     # page settings
     page.title = "Image Converter with prompt"
@@ -119,6 +126,8 @@ def main(page):
     run_btn = Ref[ElevatedButton]()
     stop_btn = Ref[ElevatedButton]()
     is_fill_transparent = Ref[Checkbox]()
+    cpu_num_slider = Ref[Slider]()
+    cpu_num_text = Ref[Text]()
 
     # ColorPicker
     def open_color_picker(e):
@@ -245,7 +254,7 @@ def main(page):
 
     # save
     def save_to_json(input_dir, output_dir, file_ext, ratio,
-                     is_lossless, is_fill_transparent, transparent_color):
+                     is_lossless, is_fill_transparent, transparent_color, cpu_num):
         with open(datafile, "w") as f:
             update_data = {
                 INPUT_KEY: input_dir,
@@ -254,9 +263,108 @@ def main(page):
                 COMP_RATIO_KEY: ratio,
                 LOSSLESS_KEY: is_lossless,
                 Fill_TRANSPARENT_KEY: is_fill_transparent,
-                TRANSPARENT_COLOR_KEY: transparent_color
+                TRANSPARENT_COLOR_KEY: transparent_color,
+                CPU_NUM_KEY: cpu_num
             }
             json.dump(update_data, f, indent=4)
+
+    # toggle theme
+
+    def toggle_textfield_border():
+        border_color = colors.BLACK if page.theme_mode == "light" \
+            else colors.BLUE_600
+        input_path.current.border_color = border_color
+        output_path.current.border_color = border_color
+        log_output.current.border_color = border_color
+
+    def toggle_theme(e):
+        page.theme_mode = "light" if page.theme_mode == "dark" else "dark"
+        toggle_textfield_border()
+        page.update()
+
+        # save to json
+        theme = "light" if page.theme_mode == "light" else "dark"
+        with open(themefile, "w") as f:
+            update_theme = {
+                THEME_KEY: theme
+            }
+            json.dump(update_theme, f, indent=4)
+
+    def toggle_transparency(e):
+        is_fill_transparent.current.value = e.control.value
+        is_fill_transparent.current.update()
+
+    # quit app
+    def on_window_close(e):
+        if e.data == "close":
+            converter.stop_script()
+            print("アプリケーションを終了します")
+
+    page.on_window_event = on_window_close
+
+    # set process num (cpu num)
+    def set_cpu_num(num):
+        cpu_num_slider.current.value = num
+        cpu_num_slider.current.update()
+
+    def update_cpu_text(num):
+        cpu_num_text.current.value = f"プロセスの同時実行数: {num}"
+        cpu_num_text.current.update()
+
+    def change_cpu_num(e):
+        num = int(e.control.value)
+        set_cpu_num(num)
+        update_cpu_text(num)
+
+    # detailed configuration
+    end_drawer = ft.NavigationDrawer(
+        controls=[
+            Container(
+                padding=30, alignment=alignment.center,
+                content=Row(
+                    alignment=MainAxisAlignment.CENTER,
+                    controls=[
+                        Icon(icons.SETTINGS),
+                        Text(value="詳細設定", size=24, weight=font_bold),
+                    ])),
+            ft.Divider(),
+            Container(
+                padding=20, alignment=alignment.center,
+                content=Row(
+                    alignment=MainAxisAlignment.CENTER,
+                    controls=[
+                        Text(
+                            ref=cpu_num_text,
+                            value=f"プロセスの同時実行数: {cpu_num_val}",
+                            size=16, weight=font_bold),
+                        Slider(
+                            ref=cpu_num_slider,
+                            min=1, max=max_cpu_num,
+                            divisions=max_cpu_num-1, width=100,
+                            value=cpu_num_val,
+                            on_change=change_cpu_num
+                        )
+                    ])),
+            Container(
+                padding=20, alignment=alignment.center,
+                on_click=toggle_theme,
+                ink=True,
+                content=Row(
+                    alignment=MainAxisAlignment.CENTER,
+                    controls=[
+                        Icon(icons.DARK_MODE),
+                        Text(value="テーマ", size=16, weight=font_bold)
+                    ]
+                ),
+            ),
+        ]
+    )
+
+    def show_end_drawer(e):
+        page.show_end_drawer(end_drawer)
+
+    page.floating_action_button = ft.FloatingActionButton(
+        icon=icons.SETTINGS, on_click=show_end_drawer)
 
     # run
     def run_compression(e):
@@ -294,6 +402,7 @@ def main(page):
         ratio = 100 if is_lossless else int(compression_ratio.current.value)
         is_fill_transparent_val = is_fill_transparent.current.value
         t_color = transparent_color.bgcolor
+        cpu_num = cpu_num_slider.current.value
 
         # save json
         save_to_json(
@@ -303,16 +412,17 @@ def main(page):
             ratio=ratio,
             is_lossless=is_lossless,
             is_fill_transparent=is_fill_transparent_val,
-            transparent_color=t_color
+            transparent_color=t_color,
+            cpu_num=cpu_num
         )
 
         # log
         log_output.current.value = f"Input Path: {input_path_val}\n"
         log_output.current.value += f"Output Path: {output_path_val}\n"
         log_output.current.value += f"Format: *.{file_ext}\n"
-        if is_lossless:
-            log_output.current.value += f"Lossless: {is_lossless}\n"
-        else:
+        log_output.current.value += f"Process Num: {cpu_num}\n"
+        log_output.current.value += f"Lossless: {is_lossless}\n"
+        if not is_lossless:
             log_output.current.value += f"Quality: {ratio}%\n"
         if is_fill_transparent_val:
             log_output.current.value += f"Fill Color: {t_color}\n"
@@ -328,14 +438,9 @@ def main(page):
             os.makedirs(output_path_val, exist_ok=True)
             settings = (input_path_val, output_path_val,
                         file_ext, ratio, is_lossless,
-                        is_fill_transparent_val, t_color)
+                        is_fill_transparent_val, t_color, cpu_num)
 
-            if converter.exist_image_path(input_path_val):
-                # 画像ファイル単体を処理
-                converter.convert_image(settings)
-                log_output.current.value += "画像の変換が完了しました"
-            elif converter.exist_images_in_folder(input_path_val):
-                # フォルダ内の画像を全て処理
+            if converter.exist_images(input_path_val):
                 converter.convert_images_in_folder(settings)
                 log_output.current.value += "画像の変換が完了しました"
             else:
@@ -353,43 +458,6 @@ def main(page):
     # stop
     def stop_compression(e):
         converter.stop_script()
-
-    # toggle theme
-    def toggle_textfield_border():
-        border_color = colors.BLACK if page.theme_mode == "light" \
-            else colors.BLUE_600
-        input_path.current.border_color = border_color
-        output_path.current.border_color = border_color
-        log_output.current.border_color = border_color
-
-    def toggle_theme(e):
-        page.theme_mode = "light" if page.theme_mode == "dark" else "dark"
-        toggle_textfield_border()
-        page.update()
-
-        # save to json
-        theme = "light" if page.theme_mode == "light" else "dark"
-        with open(themefile, "w") as f:
-            update_theme = {
-                THEME_KEY: theme
-            }
-            json.dump(update_theme, f, indent=4)
-
-    # theme
-    page.floating_action_button = ft.FloatingActionButton(
-        icon=icons.DARK_MODE, on_click=toggle_theme)
-
-    def toggle_transparency(e):
-        is_fill_transparent.current.value = e.control.value
-        is_fill_transparent.current.update()
-
-    # quit app
-    def on_window_close(e):
-        if e.data == "close":
-            converter.stop_script()
-            print("アプリケーションを終了します")
-
-    page.on_window_event = on_window_close
 
     # page layout
     page.add(

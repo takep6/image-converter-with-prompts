@@ -10,7 +10,7 @@ import psutil
 from PIL import Image, PngImagePlugin
 
 
-def get_unique_filename(input_path, output_folder_path, output_format, counter=0):
+def get_unique_filename(input_path, output_folder_path, output_format, counter=1):
     # inputフォルダ内の同じファイル（拡張子名が違う）の重複対策
     basename = os.path.basename(input_path)
     filename, _ = os.path.splitext(basename)
@@ -100,18 +100,16 @@ def convert_image(settings):
 def convert_images_in_folder(settings):
     global should_stop
     should_stop = False
-    cpu_num = psutil.cpu_count(logical=False)
 
-    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
+    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color, cpu_num = settings
 
     # 画像ファイル単体の場合
-    if output_folder_path.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+    if input_path.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
         output_path = get_unique_filename(
             input_path, output_folder_path, output_format)
         convert_image((input_path, output_path, output_format,
                       quality, lossless, is_fill_transparenct, transparent_color))
     else:
-
         files = [os.path.join(input_path, file) for file in os.listdir(
             input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))]
 
@@ -122,6 +120,7 @@ def convert_images_in_folder(settings):
             output_pathes.append(path)
 
         start_time = time.time()
+        print(cpu_num)
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
@@ -183,14 +182,15 @@ def stop_script():
         should_stop = True
 
 
-def exist_images_in_folder(folder_path):
-    for root, _, files in os.walk(folder_path):
+def exist_images(path):
+    # 画像ファイル単体の場合
+    if os.path.exists(path) and \
+            path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+        return True
+
+    # フォルダ内に画像ファイルが存在するかどうか
+    for root, _, files in os.walk(path):
         for file in files:
             if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
                 return True
     return False
-
-
-def exist_image_path(image_path):
-    return os.path.exists(image_path) and \
-        image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))
