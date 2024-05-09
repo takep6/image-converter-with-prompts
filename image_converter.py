@@ -23,11 +23,26 @@ def get_unique_filename(input_path, output_folder_path, output_format, counter=1
     return output_path
 
 
+# 拡張子
+SUPPORTED_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".avif")
+PNG_EXT = "png"
+JPG_EXT = "jpg"
+JPEG_EXT = "jpeg"
+WEBP_EXT = "webp"
+AVIF_EXT = "avif"
+
+# ファイルパスの拡張子が一致するかどうか
+
+
+def is_same_image_extension(file_path: str) -> bool:
+    return file_path.lower().endswith(SUPPORTED_EXTENSIONS)
+
+
 def extract_metadata(image, input_path):
     metadata = {}
-    if input_path.lower().endswith("png"):
+    if input_path.lower().endswith(PNG_EXT):
         metadata = image.info
-    elif input_path.lower().endswith(("jpg", "jpeg", "webp", "avif")):
+    elif input_path.lower().endswith((JPEG_EXT, JPG_EXT, WEBP_EXT, AVIF_EXT)):
         if "exif" in image.info.keys():
             exif_dict = piexif.load(image.info["exif"])
             if piexif.ExifIFD.UserComment in exif_dict["Exif"]:
@@ -51,7 +66,7 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
     画像を指定の拡張子で保存する
     is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
     """
-    if output_format.lower() == "png":
+    if output_format.lower() == PNG_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         metadata_obj = PngImagePlugin.PngInfo()
@@ -60,21 +75,21 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
                 metadata_obj.add_text(key, value)
         image.save(output_path, format="PNG", pnginfo=metadata_obj,
                    quality=quality, lossless=lossless)
-    elif output_format.lower() in ("jpg", "jpeg"):
+    elif output_format.lower() in (JPEG_EXT, JPG_EXT):
         if image.mode == "RGBA":
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
         image.save(output_path, format="JPEG", quality=quality,
                    optimize=True, exif=exif_bytes, lossless=lossless)
-    elif output_format.lower() in ("webp"):
+    elif output_format.lower() == WEBP_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
         image.save(output_path, format="WEBP", quality=quality,
                    exif=exif_bytes, lossless=lossless)
-    elif output_format.lower() in ("avif"):
+    elif output_format.lower() == AVIF_EXT:
         image.encoderinfo = {}
         image.encoderinfo['alpha_premultiplied'] = False
         image.encoderinfo['autotiling'] = True
@@ -104,14 +119,17 @@ def convert_images_in_folder(settings):
     input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color, cpu_num = settings
 
     # 画像ファイル単体の場合
-    if input_path.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+    if is_same_image_extension(input_path):
         output_path = get_unique_filename(
             input_path, output_folder_path, output_format)
-        convert_image((input_path, output_path, output_format,
-                      quality, lossless, is_fill_transparenct, transparent_color))
+        try:
+            convert_image((input_path, output_path, output_format,
+                          quality, lossless, is_fill_transparenct, transparent_color))
+        except Exception as e:
+            raise ValueError(f"変換中にエラーが発生しました: {e}")
     else:
         files = [os.path.join(input_path, file) for file in os.listdir(
-            input_path) if file.endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif'))]
+            input_path) if is_same_image_extension(file)]
 
         output_pathes = []
         for i, file in enumerate(files):
@@ -120,11 +138,12 @@ def convert_images_in_folder(settings):
             output_pathes.append(path)
 
         start_time = time.time()
-        print(cpu_num)
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
             for file, output_path in zip(files, output_pathes):
+                if file is None or output_path is None:
+                    raise ValueError("入力フォルダパスまたは出力フォルダパスがありません")
                 if not should_stop:
                     futures.append(
                         executor.submit(
@@ -137,7 +156,7 @@ def convert_images_in_folder(settings):
             try:
                 for future in as_completed(futures):
                     if not should_stop:
-                        _ = future.result()
+                        future.result()
                     else:
                         executor.shutdown(wait=False)  # 実行中のタスクを強制終了
                         raise Exception("画像の変換を停止しました")
@@ -155,12 +174,12 @@ def convert_images_in_folder(settings):
                         f"running: {future.running()}, cancelled: {future.cancelled()}")
 
                 # プロセスに終了要求
-                processes = executor._processes.values()
-                for process in processes:
+                for process in executor._processes.values():
                     process.terminate()
 
                 gone, alive = psutil.wait_procs(
-                    executor._processes.values(), timeout=5)
+                    executor._processes.values(), timeout=3)
+
                 for p in alive:
                     print("プロセスを強制終了しました", p)
                     p.kill()
@@ -184,13 +203,12 @@ def stop_script():
 
 def exist_images(path):
     # 画像ファイル単体の場合
-    if os.path.exists(path) and \
-            path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+    if os.path.exists(path) and is_same_image_extension(path):
         return True
 
     # フォルダ内に画像ファイルが存在するかどうか
     for root, _, files in os.walk(path):
         for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', 'avif')):
+            if is_same_image_extension(file):
                 return True
     return False

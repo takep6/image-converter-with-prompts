@@ -14,7 +14,6 @@ import image_converter as converter
 """
 TODO:
 フォルダ内の全てのフォルダを変換する機能を実装する？
-CPUを使いすぎない方法はある？->cpuの使用数で調節
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
 
@@ -589,7 +588,7 @@ def main(page):
                                             width=250,
                                             controls=[
                                                 Text(
-                                                    value="可逆圧縮",
+                                                    value="可逆圧縮モード",
                                                     width=160, size=16,
                                                     weight=font_bold),
                                                 Switch(ref=lossless,
