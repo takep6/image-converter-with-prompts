@@ -15,7 +15,10 @@ import image_converter as converter
 
 """
 TODO:
-フォルダ内の全てのフォルダを変換する機能を実装する？
+画像変換後に一時的な命名->重複チェックしてから保存
+gifファイルにも対応
+ディレクトリを作成してからそこに変換した画像を保存
+フォルダ内の全てのフォルダの画像を変換する機能を実装する
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
 """
 
@@ -43,9 +46,6 @@ def main(page):
     # json filename
     datafile = os.path.join(assets_dir, "data.json")
     themefile = os.path.join(assets_dir, "theme.json")
-    # test
-    # datafile = f"{os.getcwd()}/data.json"
-    # themefile = f"{os.getcwd()}/theme.json"
 
     # init values
     init_input_path_val = ""
@@ -325,8 +325,11 @@ def main(page):
         page.update()   # page.dialogを更新した後にpage.update()が必要
 
     def quit_app(e):
+        overlay_stack.visible = True
+        quit_dialog.open = False
+        page.update()
         converter.stop_process()
-        time.sleep(1)
+        time.sleep(3)
         page.window_destroy()
 
     quit_dialog = ft.AlertDialog(
@@ -334,7 +337,6 @@ def main(page):
             alignment=MainAxisAlignment.CENTER,
             controls=[
                 Text("終了しますか？（変換処理は中断されます）"),
-                ft.ProgressRing()
             ]),
         actions=[
             ft.TextButton("終了する", on_click=quit_app),
@@ -353,6 +355,16 @@ def main(page):
 
     page.on_window_event = on_window_close
     page.window_prevent_close = True
+
+    overlay_stack = ft.Stack(
+        controls=[
+            Container(
+                width=page.window_width, height=page.window_height,
+                alignment=alignment.center,
+                bgcolor=colors.with_opacity(0.6, colors.BLACK),
+                content=ft.ProgressRing())],
+        visible=False)
+    page.overlay.append(overlay_stack)
 
     # set process num (cpu num)
 
