@@ -112,8 +112,9 @@ def main(page):
     page.window_width = 800
     page.window_height = 1000
 
-    # text style
+    # variables
     font_bold = ft.FontWeight.BOLD
+    is_running_process = False
 
     # Control Ref
     input_path = Ref[TextField]()
@@ -337,7 +338,11 @@ def main(page):
 
     def on_window_close(e):
         if e.data == "close":
-            open_quit_dialog()
+            nonlocal is_running_process
+            if is_running_process:
+                open_quit_dialog()
+            else:
+                page.window_destroy()
 
     page.on_window_event = on_window_close
     page.window_prevent_close = True
@@ -408,7 +413,6 @@ def main(page):
         icon=icons.SETTINGS, on_click=show_end_drawer)
 
     # run
-
     def run_compression(e):
         # check input value
         is_input_path_empty = input_path.current.value == ""
@@ -477,6 +481,8 @@ def main(page):
 
         # Actual compression logic goes here
         try:
+            nonlocal is_running_process
+            is_running_process = True
             os.makedirs(output_path_val, exist_ok=True)
             settings = (input_path_val, output_path_val,
                         file_ext, ratio, is_lossless,
@@ -495,6 +501,7 @@ def main(page):
             page.remove(progress_bar)
             run_btn.current.disabled = False
             stop_btn.current.disabled = True
+            is_running_process = False
             page.update()
 
     # stop
