@@ -238,6 +238,11 @@ def main(page):
             compression_ratio.current.disabled = False
             is_fill_transparent.current.value = True
             is_fill_transparent.current.disabled = True
+        elif ext == "avif":
+            lossless.current.value = False
+            lossless.current.disabled = True
+            compression_ratio.current.disabled = False
+            is_fill_transparent.current.disabled = False
         else:
             lossless.current.disabled = False
             compression_ratio.current.disabled = False
