@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import time
 
 import flet as ft
@@ -315,8 +316,8 @@ def main(page):
         quit_dialog.open = True
         page.update()   # page.dialogを更新した後にpage.update()が必要
 
-    def process_terminate(e):
-        converter.stop_script()
+    def quit_app(e):
+        converter.stop_process()
         time.sleep(1)
         page.window_destroy()
 
@@ -328,7 +329,7 @@ def main(page):
                 ft.ProgressRing()
             ]),
         actions=[
-            ft.TextButton("終了する", on_click=process_terminate),
+            ft.TextButton("終了する", on_click=quit_app),
             ft.TextButton("キャンセル", on_click=close_quit_dialog),
         ],
         actions_alignment=MainAxisAlignment.END,
@@ -498,7 +499,7 @@ def main(page):
 
     # stop
     def stop_compression(e):
-        converter.stop_script()
+        converter.stop_process()
 
     # page layout
     page.add(
@@ -695,8 +696,6 @@ def main(page):
                                                 on_click=stop_compression)
                                         ]),
                                 )
-
-
                             ]),
                     ]),
                 Column(
@@ -724,3 +723,6 @@ def main(page):
 
 if __name__ == "__main__":
     ft.app(target=main)
+    # ctrl+cなど異常終了時にシグナルを受け取る
+    signal.signal(signal.SIGINT, converter.signal_handler)
+    signal.signal(signal.SIGTERM, converter.signal_handler)

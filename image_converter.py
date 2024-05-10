@@ -1,5 +1,4 @@
 import os
-import signal
 import sys
 import threading
 import time
@@ -8,7 +7,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import piexif
 import piexif.helper
 import pillow_avif
-import psutil
 from PIL import Image, PngImagePlugin
 
 
@@ -75,21 +73,21 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
-        image.save(output_path, format="PNG", pnginfo=metadata_obj,
+        image.save(output_path, format=PNG_EXT, pnginfo=metadata_obj,
                    quality=quality, lossless=lossless)
     elif output_format.lower() in (JPEG_EXT, JPG_EXT):
         if image.mode == "RGBA":
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format="JPEG", quality=quality,
+        image.save(output_path, format=JPEG_EXT, quality=quality,
                    optimize=True, exif=exif_bytes, lossless=lossless)
     elif output_format.lower() == WEBP_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format="WEBP", quality=quality,
+        image.save(output_path, format=WEBP_EXT, quality=quality,
                    exif=exif_bytes, lossless=lossless)
     elif output_format.lower() == AVIF_EXT:
         image.encoderinfo = {}
@@ -99,7 +97,7 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format="AVIF", quality=quality,
+        image.save(output_path, format=AVIF_EXT, quality=quality,
                    exif=exif_bytes, lossless=lossless)
 
     else:
@@ -168,10 +166,6 @@ def convert_images_in_folder(settings):
                     if not future.running():
                         future.cancel()
 
-                # プロセスに終了要求(データが不完全でも終了)
-                # for process in executor._processes.values():
-                #     process.terminate()
-
                 # futureの状態を確認
                 # for future in futures:
                 #     print(
@@ -179,6 +173,11 @@ def convert_images_in_folder(settings):
 
                 # エラーを伝播
                 raise Exception("画像の変換を停止しました")
+            except KeyboardInterrupt:
+                # ctrl+cで終了した場合
+                # プロセスに終了要求(データが不完全でも終了)
+                for process in executor._processes.values():
+                    process.terminate()
             finally:
                 end_time = time.time()
                 if not should_stop:
@@ -191,7 +190,7 @@ should_stop = False
 stop_lock = threading.Lock()
 
 
-def stop_script():
+def stop_process():
     global should_stop
     with stop_lock:
         should_stop = True
@@ -213,9 +212,5 @@ def exist_images(path):
 
 
 def signal_handler(sig, frame):
-    print('終了します')
-    stop_script()
+    stop_process()
     sys.exit(0)
-
-
-signal.signal(signal.SIGINT, signal_handler)
