@@ -248,22 +248,20 @@ def main(page):
         page.update()
 
     def open_input_dir(e):
+        # ファイルかフォルダかを判別
         path = input_path.current.value
         path = os.path.dirname(path) if os.path.isfile(path) else path
+        open_dir(path)
+
+    def open_output_dir(e):
+        open_dir(output_path.current.value)
+
+    def open_dir(path):
         # OS によって適切なコマンドを使ってフォルダを開く
         if os.name == 'nt':  # Windows の場合
             os.system(f'explorer "{path}"')
         elif os.name == 'posix':  # macOS や Linux の場合
             os.system(f'open "{path}"')
-        else:
-            print("この OS はサポートされていません。")
-
-    def open_output_dir(e):
-        # OS によって適切なコマンドを使ってフォルダを開く
-        if os.name == 'nt':  # Windows の場合
-            os.system(f'explorer "{output_path.current.value}"')
-        elif os.name == 'posix':  # macOS や Linux の場合
-            os.system(f'open "{output_path.current.value}"')
         else:
             print("この OS はサポートされていません。")
 
@@ -423,14 +421,14 @@ def main(page):
         is_output_path_empty = output_path.current.value == ""
 
         if is_input_path_empty:
-            input_path.current.error_text = "Input Pathにフォルダパスを入力してください"
+            input_path.current.error_text = "フォルダパスまたはファイルパスを入力してください"
             input_path.current.bgcolor = colors.RED_100
         else:
             input_path.current.error_text = ""
             input_path.current.bgcolor = colors.BACKGROUND
 
         if is_output_path_empty:
-            output_path.current.error_text = "Output Pathにフォルダパスを入力してください"
+            output_path.current.error_text = "フォルダパスを入力してください"
             output_path.current.bgcolor = colors.RED_100
         else:
             output_path.current.error_text = ""
@@ -467,15 +465,15 @@ def main(page):
         )
 
         # log
-        log_output.current.value = f"Input Path: {input_path_val}\n"
-        log_output.current.value += f"Output Path: {output_path_val}\n"
-        log_output.current.value += f"Format: *.{file_ext}\n"
-        log_output.current.value += f"Process Num: {cpu_num}\n"
-        log_output.current.value += f"Lossless: {is_lossless}\n"
+        log_output.current.value = f"入力フォルダパス: {input_path_val}\n"
+        log_output.current.value += f"出力フォルダパス: {output_path_val}\n"
+        log_output.current.value += f"変換後の拡張子: *.{file_ext}\n"
+        log_output.current.value += f"同時プロセス実行数: {cpu_num}\n"
+        log_output.current.value += f"可逆圧縮モード: {is_lossless}\n"
         if not is_lossless:
-            log_output.current.value += f"Quality: {ratio}%\n"
+            log_output.current.value += f"品質: {ratio}%\n"
         if is_fill_transparent_val:
-            log_output.current.value += f"Fill Color: {t_color}\n"
+            log_output.current.value += f"透過部分の色: {t_color}\n"
 
         # prevent double clicking
         run_btn.current.disabled = True
