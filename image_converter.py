@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -137,13 +139,9 @@ def convert_images_in_folder(settings):
                 file, output_folder_path, output_format, i+1)
             output_pathes.append(path)
 
-        start_time = time.time()
-
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
             for file, output_path in zip(files, output_pathes):
-                if file is None or output_path is None:
-                    raise ValueError("入力フォルダパスまたは出力フォルダパスがありません")
                 if not should_stop:
                     futures.append(
                         executor.submit(
@@ -154,12 +152,14 @@ def convert_images_in_folder(settings):
                     break
 
             try:
+                start_time = time.time()
+
                 for future in as_completed(futures):
                     if not should_stop:
                         future.result()
                     else:
-                        executor.shutdown(wait=False)  # 実行中のタスクを強制終了
                         raise Exception("画像の変換を停止しました")
+
             except Exception as e:
                 print(f"Task generated an exception: {e}")
 
@@ -168,26 +168,22 @@ def convert_images_in_folder(settings):
                     if not future.running():
                         future.cancel()
 
+                # プロセスに終了要求(データが不完全でも終了)
+                # for process in executor._processes.values():
+                #     process.terminate()
+
                 # futureの状態を確認
-                for future in futures:
+                # for future in futures:
+                #     print(
+                #         f"running: {future.running()}, cancelled: {future.cancelled()}")
+
+                # エラーを伝播
+                raise Exception("画像の変換を停止しました")
+            finally:
+                end_time = time.time()
+                if not should_stop:
                     print(
-                        f"running: {future.running()}, cancelled: {future.cancelled()}")
-
-                # プロセスに終了要求
-                for process in executor._processes.values():
-                    process.terminate()
-
-                gone, alive = psutil.wait_procs(
-                    executor._processes.values(), timeout=3)
-
-                for p in alive:
-                    print("プロセスを強制終了しました", p)
-                    p.kill()
-
-        end_time = time.time()
-
-        if not should_stop:
-            print(f"Processing completed in {end_time - start_time} seconds.")
+                        f"Processing completed in {end_time - start_time} seconds.")
 
 
 # スクリプトを停止するためのグローバル変数とロックオブジェクト
@@ -212,3 +208,14 @@ def exist_images(path):
             if is_same_image_extension(file):
                 return True
     return False
+
+# 強制終了を検知する
+
+
+def signal_handler(sig, frame):
+    print('終了します')
+    stop_script()
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, signal_handler)

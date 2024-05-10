@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import flet as ft
 import psutil
@@ -129,7 +130,8 @@ def main(page):
 
     # ColorPicker
     def open_color_picker(e):
-        d.open = True
+        page.dialog = color_dialog
+        color_dialog.open = True
         page.update()
 
     color_picker = ColorPicker(color=transparent_color_val, width=300)
@@ -140,14 +142,14 @@ def main(page):
 
     def change_color(e):
         transparent_color.bgcolor = color_picker.color
-        d.open = False
+        color_dialog.open = False
         page.update()
 
     def close_dialog(e):
-        d.open = False
-        d.update()
+        color_dialog.open = False
+        color_dialog.update()
 
-    d = ft.AlertDialog(
+    color_dialog = ft.AlertDialog(
         content=color_picker,
         actions=[
             ft.TextButton("OK", on_click=change_color),
@@ -155,9 +157,9 @@ def main(page):
         ],
         actions_alignment=MainAxisAlignment.END,
     )
-    page.dialog = d
 
     # FilePicker
+
     def select_input_path(e: FilePickerResultEvent):
         input_path.current.value = e.path if e.path \
             else input_path.current.value
@@ -242,11 +244,13 @@ def main(page):
         page.update()
 
     def open_input_dir(e):
+        path = input_path.current.value
+        path = os.path.dirname(path) if os.path.isfile(path) else path
         # OS によって適切なコマンドを使ってフォルダを開く
         if os.name == 'nt':  # Windows の場合
-            os.system(f'explorer "{input_path.current.value}"')
+            os.system(f'explorer "{path}"')
         elif os.name == 'posix':  # macOS や Linux の場合
-            os.system(f'open "{input_path.current.value}"')
+            os.system(f'open "{path}"')
         else:
             print("この OS はサポートされていません。")
 
@@ -302,14 +306,43 @@ def main(page):
         is_fill_transparent.current.update()
 
     # quit app
+    def close_quit_dialog(e):
+        quit_dialog.open = False
+        quit_dialog.update()
+
+    def open_quit_dialog():
+        page.dialog = quit_dialog
+        quit_dialog.open = True
+        page.update()   # page.dialogを更新した後にpage.update()が必要
+
+    def process_terminate(e):
+        converter.stop_script()
+        time.sleep(1)
+        page.window_destroy()
+
+    quit_dialog = ft.AlertDialog(
+        content=Row(
+            alignment=MainAxisAlignment.CENTER,
+            controls=[
+                Text("終了しますか？（変換処理は中断されます）"),
+                ft.ProgressRing()
+            ]),
+        actions=[
+            ft.TextButton("終了する", on_click=process_terminate),
+            ft.TextButton("キャンセル", on_click=close_quit_dialog),
+        ],
+        actions_alignment=MainAxisAlignment.END,
+    )
+
     def on_window_close(e):
         if e.data == "close":
-            converter.stop_script()
-            print("アプリケーションを終了します")
+            open_quit_dialog()
 
     page.on_window_event = on_window_close
+    page.window_prevent_close = True
 
     # set process num (cpu num)
+
     def set_cpu_num(num):
         cpu_num_slider.current.value = num
         cpu_num_slider.current.update()
@@ -374,6 +407,7 @@ def main(page):
         icon=icons.SETTINGS, on_click=show_end_drawer)
 
     # run
+
     def run_compression(e):
         # check input value
         is_input_path_empty = input_path.current.value == ""
