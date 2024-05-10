@@ -32,6 +32,12 @@ def main(page):
     THEME_KEY = "theme_mode"
     CPU_NUM_KEY = "cpu_num"
 
+    # variables
+    font_bold = ft.FontWeight.BOLD
+    is_running_process = False
+    LIGHT_THEME = "light"
+    DARK_THEME = "dark"
+
     assets_dir = f"{os.getcwd()}/assets"
     os.makedirs(assets_dir, exist_ok=True)
     # json filename
@@ -49,7 +55,7 @@ def main(page):
     init_lossless_val = False
     init_fill_transparent_val = False
     init_transparent_color = "#ffffff"
-    init_theme_val = "light"
+    init_theme_val = LIGHT_THEME
     init_cpu_num = psutil.cpu_count(logical=False)
     max_cpu_num = psutil.cpu_count(logical=True)
 
@@ -112,10 +118,6 @@ def main(page):
     page.window_width = 800
     page.window_height = 1000
 
-    # variables
-    font_bold = ft.FontWeight.BOLD
-    is_running_process = False
-
     # Control Ref
     input_path = Ref[TextField]()
     output_path = Ref[TextField]()
@@ -154,8 +156,8 @@ def main(page):
     color_dialog = ft.AlertDialog(
         content=color_picker,
         actions=[
-            ft.TextButton("OK", on_click=change_color),
-            ft.TextButton("Cancel", on_click=close_dialog),
+            ft.TextButton("決定", on_click=change_color),
+            ft.TextButton("キャンセル", on_click=close_dialog),
         ],
         actions_alignment=MainAxisAlignment.END,
     )
@@ -267,7 +269,8 @@ def main(page):
 
     # save
     def save_to_json(input_dir, output_dir, file_ext, ratio,
-                     is_lossless, is_fill_transparent, transparent_color, cpu_num):
+                     is_lossless, is_fill_transparent,
+                     transparent_color, cpu_num):
         with open(datafile, "w") as f:
             update_data = {
                 INPUT_KEY: input_dir,
@@ -284,19 +287,20 @@ def main(page):
     # toggle theme
 
     def toggle_textfield_border():
-        border_color = colors.BLACK if page.theme_mode == "light" \
+        border_color = colors.BLACK if page.theme_mode == LIGHT_THEME \
             else colors.BLUE_600
         input_path.current.border_color = border_color
         output_path.current.border_color = border_color
         log_output.current.border_color = border_color
 
     def toggle_theme(e):
-        page.theme_mode = "light" if page.theme_mode == "dark" else "dark"
+        page.theme_mode = LIGHT_THEME if page.theme_mode == DARK_THEME \
+            else DARK_THEME
         toggle_textfield_border()
         page.update()
 
         # save to json
-        theme = "light" if page.theme_mode == "light" else "dark"
+        theme = LIGHT_THEME if page.theme_mode == LIGHT_THEME else DARK_THEME
         with open(themefile, "w") as f:
             update_theme = {
                 THEME_KEY: theme
@@ -494,9 +498,8 @@ def main(page):
             else:
                 log_output.current.value = "画像ファイルが存在しません"
 
-        except Exception as e:
-            log_output.current.value += "変換中にエラーが発生しました\n"
-            log_output.current.value += str(e)
+        except ValueError as e:
+            log_output.current.value += f"変換中にエラーが発生しました\n{e}"
         finally:
             page.remove(progress_bar)
             run_btn.current.disabled = False
@@ -507,6 +510,8 @@ def main(page):
     # stop
     def stop_compression(e):
         converter.stop_process()
+        stop_btn.current.disabled = True
+        stop_btn.current.update()
 
     # page layout
     page.add(
