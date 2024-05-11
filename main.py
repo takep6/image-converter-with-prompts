@@ -1,4 +1,3 @@
-import json
 import os
 import signal
 import time
@@ -12,6 +11,8 @@ from flet import (Card, Checkbox, Column, Container, Dropdown, ElevatedButton,
 from flet_contrib.color_picker import ColorPicker
 
 import image_converter as converter
+from config_loader import ConfigLoader
+from theme_loader import ThemeLoader
 
 """
 TODO:
@@ -24,99 +25,22 @@ gifファイルにも対応
 
 
 def main(page):
-    # json keys
-    INPUT_KEY = "input_path"
-    OUTPUT_KEY = "output_path"
-    EXT_KEY = "ext_path"
-    COMP_RATIO_KEY = "comp_ratio"
-    LOSSLESS_KEY = "lossless"
-    Fill_TRANSPARENT_KEY = "fill_transparent"
-    TRANSPARENT_COLOR_KEY = "transparent_color"
-    THEME_KEY = "theme_mode"
-    CPU_NUM_KEY = "cpu_num"
-
     # variables
     font_bold = ft.FontWeight.BOLD
     is_running_process = False
     LIGHT_THEME = "light"
     DARK_THEME = "dark"
-
-    assets_dir = f"{os.getcwd()}/assets"
-    os.makedirs(assets_dir, exist_ok=True)
-    # json filename
-    datafile = os.path.join(assets_dir, "data.json")
-    themefile = os.path.join(assets_dir, "theme.json")
-
-    # init values
-    init_input_path_val = ""
-    init_output_path_val = ""
-    init_ext_val = "webp"
-    init_comp_ratio_val = 100
-    init_lossless_val = False
-    init_fill_transparent_val = False
-    init_transparent_color = "#ffffff"
-    init_theme_val = LIGHT_THEME
-    init_cpu_num = psutil.cpu_count(logical=False)
-    max_cpu_num = psutil.cpu_count(logical=True)
-
-    # create jsonfile
-    if not os.path.exists(datafile):
-        with open(datafile, "w") as f:
-            new_data = {
-                INPUT_KEY: init_input_path_val,
-                OUTPUT_KEY: init_output_path_val,
-                EXT_KEY: init_ext_val,
-                COMP_RATIO_KEY: init_comp_ratio_val,
-                LOSSLESS_KEY: init_lossless_val,
-                Fill_TRANSPARENT_KEY: init_fill_transparent_val,
-                TRANSPARENT_COLOR_KEY: init_transparent_color,
-                CPU_NUM_KEY: init_cpu_num
-            }
-            json.dump(new_data, f, indent=4)
-
-    if not os.path.exists(themefile):
-        with open(themefile, "w") as f:
-            new_theme = {
-                THEME_KEY: init_theme_val
-            }
-            json.dump(new_theme, f, indent=4)
-
-    # initialize values
-    try:
-        with open(datafile, "r")as f:
-            data = json.load(f)
-            input_path_val = data[INPUT_KEY]
-            output_path_val = data[OUTPUT_KEY]
-            ext_val = data[EXT_KEY]
-            comp_ratio_val = data[COMP_RATIO_KEY]
-            lossless_val = data[LOSSLESS_KEY]
-            fill_transparent_val = data[Fill_TRANSPARENT_KEY]
-            transparent_color_val = data[TRANSPARENT_COLOR_KEY]
-            cpu_num_val = data[CPU_NUM_KEY]
-
-        with open(themefile, "r")as f:
-            data = json.load(f)
-            theme_val = data[THEME_KEY]
-
-    except Exception as e:
-        print(e, "jsonデータのロードに失敗しました。初期値でアプリを開始します。")
-        input_path_val = init_input_path_val
-        output_path_val = init_output_path_val
-        ext_val = init_ext_val
-        comp_ratio_val = init_comp_ratio_val
-        lossless_val = init_lossless_val
-        theme_val = init_theme_val
-        fill_transparent_val = init_fill_transparent_val
-        transparent_color_val = init_transparent_color
-        cpu_num_val = init_cpu_num
+    config = ConfigLoader()
+    theme = ThemeLoader()
 
     # page settings
     page.title = "Image Converter with prompt"
-    page.theme_mode = theme_val
+    page.theme_mode = theme.theme_val
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 30
     page.window_width = 800
     page.window_height = 1000
+    max_cpu_num = psutil.cpu_count(logical=True)
 
     # Control Ref
     input_path = Ref[TextField]()
@@ -138,10 +62,10 @@ def main(page):
         color_dialog.open = True
         page.update()
 
-    color_picker = ColorPicker(color=transparent_color_val, width=300)
+    color_picker = ColorPicker(color=config.transparent_color_val, width=300)
     transparent_color = Container(
         width=60, height=35, border_radius=5,
-        bgcolor=transparent_color_val,
+        bgcolor=config.transparent_color_val,
         on_click=open_color_picker)
 
     def change_color(e):
@@ -270,23 +194,6 @@ def main(page):
         else:
             print("この OS はサポートされていません。")
 
-    # save
-    def save_to_json(input_dir, output_dir, file_ext, ratio,
-                     is_lossless, is_fill_transparent,
-                     transparent_color, cpu_num):
-        with open(datafile, "w") as f:
-            update_data = {
-                INPUT_KEY: input_dir,
-                OUTPUT_KEY: output_dir,
-                EXT_KEY: file_ext,
-                COMP_RATIO_KEY: ratio,
-                LOSSLESS_KEY: is_lossless,
-                Fill_TRANSPARENT_KEY: is_fill_transparent,
-                TRANSPARENT_COLOR_KEY: transparent_color,
-                CPU_NUM_KEY: cpu_num
-            }
-            json.dump(update_data, f, indent=4)
-
     # toggle theme
 
     def toggle_textfield_border():
@@ -300,15 +207,8 @@ def main(page):
         page.theme_mode = LIGHT_THEME if page.theme_mode == DARK_THEME \
             else DARK_THEME
         toggle_textfield_border()
+        theme.save(page.theme_mode)
         page.update()
-
-        # save to json
-        theme = LIGHT_THEME if page.theme_mode == LIGHT_THEME else DARK_THEME
-        with open(themefile, "w") as f:
-            update_theme = {
-                THEME_KEY: theme
-            }
-            json.dump(update_theme, f, indent=4)
 
     def toggle_transparency(e):
         is_fill_transparent.current.value = e.control.value
@@ -373,7 +273,7 @@ def main(page):
         cpu_num_slider.current.update()
 
     def update_cpu_text(num):
-        cpu_num_text.current.value = f"プロセスの同時実行数: {num}"
+        cpu_num_text.current.value = f"同時プロセス実行数: {num}"
         cpu_num_text.current.update()
 
     def change_cpu_num(e):
@@ -400,13 +300,13 @@ def main(page):
                     controls=[
                         Text(
                             ref=cpu_num_text,
-                            value=f"プロセスの同時実行数: {cpu_num_val}",
+                            value=f"同時プロセス実行数: {config.cpu_num_val}",
                             size=16, weight=font_bold),
                         Slider(
                             ref=cpu_num_slider,
                             min=1, max=max_cpu_num,
                             divisions=max_cpu_num-1, width=100,
-                            value=cpu_num_val,
+                            value=config.cpu_num_val,
                             on_change=change_cpu_num
                         )
                     ])),
@@ -470,11 +370,11 @@ def main(page):
         cpu_num = cpu_num_slider.current.value
 
         # save json
-        save_to_json(
-            input_dir=input_path_val,
-            output_dir=output_path_val,
-            file_ext=file_ext,
-            ratio=ratio,
+        config.save(
+            input_path=input_path_val,
+            output_path=output_path_val,
+            ext=file_ext,
+            comp_ratio=ratio,
             is_lossless=is_lossless,
             is_fill_transparent=is_fill_transparent_val,
             transparent_color=t_color,
@@ -564,7 +464,7 @@ def main(page):
                                     TextField(
                                         ref=input_path,
                                         label="入力フォルダパス",
-                                        value=input_path_val, width=500),
+                                        value=config.input_path_val, width=500),
                                     ElevatedButton(
                                         content=Icon(icons.FOLDER_OPEN),
                                         width=70, height=45,
@@ -585,7 +485,7 @@ def main(page):
                                     TextField(
                                         ref=output_path,
                                         label="出力フォルダパス",
-                                        value=output_path_val, width=500),
+                                        value=config.output_path_val, width=500),
                                     ElevatedButton(
                                         content=Icon(icons.FOLDER_OPEN),
                                         width=70, height=45,
@@ -632,7 +532,7 @@ def main(page):
                                                     weight=font_bold),
                                                 Dropdown(
                                                     ref=file_exts_dropdown,
-                                                    value=ext_val,
+                                                    value=config.ext_val,
                                                     options=[
                                                         dropdown.Option("jpg"),
                                                         dropdown.Option("png"),
@@ -654,7 +554,7 @@ def main(page):
                                                     width=160, size=16,
                                                     weight=font_bold),
                                                 Switch(ref=lossless,
-                                                       value=lossless_val),
+                                                       value=config.lossless_val),
                                             ]),
                                         Row(
                                             alignment=MainAxisAlignment.START,
@@ -662,14 +562,14 @@ def main(page):
                                             controls=[
                                                 Text(
                                                     ref=compression_ratio_text,
-                                                    value=f"品質: {comp_ratio_val} %",
+                                                    value=f"品質: {config.comp_ratio_val} %",
                                                     width=120, size=16,
                                                     weight=font_bold),
                                                 Slider(
                                                     ref=compression_ratio,
                                                     label="ファイルサイズ 大",
                                                     min=0, max=100,
-                                                    value=comp_ratio_val,
+                                                    value=config.comp_ratio_val,
                                                     width=140, divisions=20,
                                                     on_change=change_comp_ratio),
                                             ]),
@@ -691,7 +591,7 @@ def main(page):
                                                         weight=font_bold),
                                                     Checkbox(
                                                         ref=is_fill_transparent,
-                                                        value=fill_transparent_val,
+                                                        value=config.fill_transparent_val,
                                                         width=80,
                                                         on_change=toggle_transparency
                                                     ),
@@ -743,7 +643,7 @@ def main(page):
 
     # 関数で初期化したい場合は、page.add()した後でないと実行できないので注意
     toggle_textfield_border()
-    switch_options_value(ext_val)
+    switch_options_value(config.ext_val)
     stop_btn.current.disabled = True
     page.update()
 
