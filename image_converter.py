@@ -1,7 +1,9 @@
 import os
+import signal
 import sys
 import threading
 import time
+import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import piexif
@@ -10,17 +12,21 @@ import pillow_avif
 from PIL import Image, PngImagePlugin
 
 
-def get_unique_filename(input_path, output_folder_path, output_format, counter=1):
-    # inputフォルダ内の同じファイル（拡張子名が違う）の重複対策
-    basename = os.path.basename(input_path)
-    filename, _ = os.path.splitext(basename)
-    output_path = f"{output_folder_path}/{filename}-{counter:05d}.{output_format}"
-    # outputフォルダ内のファイル重複チェック
-    dup_count = 1
-    while os.path.exists(output_path):
-        output_path = f"{output_folder_path}/{filename}-{counter:05d}_{dup_count:02d}.{output_format}"
-        dup_count += 1
-    return output_path
+# outputフォルダ内のファイル重複チェック
+def avoid_filename_collision(input_path, output_folder_path, output_format):
+    filename, _ = os.path.splitext(os.path.basename(input_path))
+    output_file_path = f"{output_folder_path}/{filename}.{output_format}"
+    counter = 1
+    while os.path.exists(output_file_path):
+        output_file_path = f"{output_folder_path}/{filename}_{counter:02d}.{output_format}"
+        counter += 1
+    return output_file_path
+
+# inputフォルダ内の同じファイル（拡張子名が違う）の重複対策
+
+
+def get_unique_filepath(output_folder_path):
+    return os.path.join(output_folder_path, str(uuid.uuid4()))
 
 
 # 拡張子
@@ -31,10 +37,9 @@ JPEG_EXT = "jpeg"
 WEBP_EXT = "webp"
 AVIF_EXT = "avif"
 
-# ファイルパスの拡張子が一致するかどうか
 
-
-def is_same_image_extension(file_path: str) -> bool:
+def is_supported_extension(file_path: str) -> bool:
+    # ファイルパスの拡張子が一致するかどうか
     return file_path.lower().endswith(SUPPORTED_EXTENSIONS)
 
 
@@ -66,30 +71,27 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
     画像を指定の拡張子で保存する
     is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
     """
-    if output_format.lower() == PNG_EXT:
+    ext = output_format.lower()
+    exif_bytes = None
+
+    if ext == PNG_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
-        image.save(output_path, format=PNG_EXT, pnginfo=metadata_obj,
-                   quality=quality, lossless=lossless)
-    elif output_format.lower() in (JPEG_EXT, JPG_EXT):
+    elif ext in (JPEG_EXT, JPG_EXT):
         if image.mode == "RGBA":
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format=JPEG_EXT, quality=quality,
-                   optimize=True, exif=exif_bytes, lossless=lossless)
-    elif output_format.lower() == WEBP_EXT:
+    elif ext == WEBP_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format=WEBP_EXT, quality=quality,
-                   exif=exif_bytes, lossless=lossless)
-    elif output_format.lower() == AVIF_EXT:
+    elif ext == AVIF_EXT:
         image.encoderinfo = {}
         image.encoderinfo['alpha_premultiplied'] = False
         image.encoderinfo['autotiling'] = True
@@ -97,15 +99,19 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-        image.save(output_path, format=AVIF_EXT, quality=quality,
-                   exif=exif_bytes, lossless=lossless)
-
     else:
         raise ValueError(f"Invalid output format: {output_format}")
+
+    # jpgの場合のみJPEGに変換、それ以外はスルー
+    ext = JPEG_EXT if ext == JPG_EXT else ext
+    # メタデータ付き画像を保存
+    image.save(output_path, format=ext, quality=quality,
+               exif=exif_bytes, lossless=lossless)
 
 
 def convert_image(settings):
     input_path, output_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
+
     with Image.open(input_path) as image:
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
@@ -118,34 +124,39 @@ def convert_images_in_folder(settings):
 
     input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color, cpu_num = settings
 
-    # 画像ファイル単体の場合
-    if is_same_image_extension(input_path):
-        output_path = get_unique_filename(
+    # 画像ファイル単体を変換
+    if os.path.isfile(input_path) and is_supported_extension(input_path):
+        output_path = avoid_filename_collision(
             input_path, output_folder_path, output_format)
         try:
             convert_image((input_path, output_path, output_format,
                           quality, lossless, is_fill_transparenct, transparent_color))
         except Exception as e:
             raise ValueError(f"変換中にエラーが発生しました: {e}")
+    # フォルダ内の画像を全て変換
     else:
-        files = [os.path.join(input_path, file) for file in os.listdir(
-            input_path) if is_same_image_extension(file)]
+        input_filepaths = [os.path.join(input_path, filename) for filename
+                           in os.listdir(
+            input_path) if is_supported_extension(filename)]
 
-        output_pathes = []
-        for i, file in enumerate(files):
-            path = get_unique_filename(
-                file, output_folder_path, output_format, i+1)
-            output_pathes.append(path)
+        output_filepaths = []
+        output_paths_for_rename = []
+        for input_filepath in input_filepaths:
+            unique_path = get_unique_filepath(output_folder_path)
+            output_filepaths.append(unique_path)
+            # 後でリネームする用
+            output_paths_for_rename.append((unique_path, input_filepath))
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
-            for file, output_path in zip(files, output_pathes):
+            for input_filepath, output_filepath in zip(input_filepaths, output_filepaths):
                 if not should_stop:
                     futures.append(
                         executor.submit(
                             convert_image,
-                            (file, output_path, output_format, quality,
-                                lossless, is_fill_transparenct, transparent_color)))
+                            (input_filepath, output_filepath, output_format,
+                             quality, lossless, is_fill_transparenct,
+                             transparent_color)))
                 else:
                     break
 
@@ -155,6 +166,15 @@ def convert_images_in_folder(settings):
                 for future in as_completed(futures):
                     if not should_stop:
                         future.result()
+                    else:
+                        raise Exception("画像の変換を停止しました")
+
+                # 変換完了後にリネーム
+                for unique_filepath, output_filepath in output_paths_for_rename:
+                    if not should_stop:
+                        o_path = avoid_filename_collision(
+                            output_filepath, output_folder_path, output_format)
+                        os.rename(unique_filepath, o_path)
                     else:
                         raise Exception("画像の変換を停止しました")
 
@@ -185,7 +205,20 @@ def convert_images_in_folder(settings):
                         f"Processing completed in {end_time - start_time} seconds.")
 
 
-# スクリプトを停止するためのグローバル変数とロックオブジェクト
+def can_convert(path):
+    # 画像ファイル単体の場合
+    if os.path.isfile(path) and is_supported_extension(path):
+        return True
+
+    # フォルダ内に画像ファイルが存在するかどうか
+    if os.path.isdir(path):
+        for file in os.listdir(path):
+            if is_supported_extension(file):
+                return True
+    return False
+
+
+# プロセス停止用
 should_stop = False
 stop_lock = threading.Lock()
 
@@ -196,19 +229,10 @@ def stop_process():
         should_stop = True
 
 
-def exist_images(path):
-    # 画像ファイル単体の場合
-    if os.path.exists(path) and is_same_image_extension(path):
-        return True
-
-    # フォルダ内に画像ファイルが存在するかどうか
-    for root, _, files in os.walk(path):
-        for file in files:
-            if is_same_image_extension(file):
-                return True
-    return False
-
-# 強制終了を検知する
+def set_signals():
+    # ctrl+cなど異常終了時にシグナルを受け取る
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
 
 def signal_handler(sig, frame):

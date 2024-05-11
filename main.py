@@ -407,7 +407,7 @@ def main(page):
                         file_ext, ratio, is_lossless,
                         is_fill_transparent_val, t_color, cpu_num)
 
-            if converter.exist_images(input_path_val):
+            if converter.can_convert(input_path_val):
                 converter.convert_images_in_folder(settings)
                 log_output.current.value += "画像の変換が完了しました"
             else:
@@ -650,6 +650,4 @@ def main(page):
 
 if __name__ == "__main__":
     ft.app(target=main)
-    # ctrl+cなど異常終了時にシグナルを受け取る
-    signal.signal(signal.SIGINT, converter.signal_handler)
-    signal.signal(signal.SIGTERM, converter.signal_handler)
+    converter.set_signals()
