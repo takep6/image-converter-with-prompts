@@ -36,7 +36,6 @@ class ConfigLoader:
             self.load()
         except FileNotFoundError:
             print("config.jsonのロードに失敗しました。初期値でアプリを開始します。")
-        finally:
             self.create()
             self.load()
 

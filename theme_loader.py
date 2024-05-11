@@ -20,7 +20,6 @@ class ThemeLoader:
             self.load()
         except FileNotFoundError:
             print("theme.jsonのロードに失敗しました。初期値でアプリを開始します。")
-        finally:
             self.create()
             self.load()
 
