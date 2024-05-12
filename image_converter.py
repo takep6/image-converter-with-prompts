@@ -11,31 +11,16 @@ import piexif.helper
 import pillow_avif
 from PIL import Image, PngImagePlugin
 
-
-# outputフォルダ内のファイル重複チェック
-def avoid_filename_collision(input_path, output_folder_path, output_format):
-    filename, _ = os.path.splitext(os.path.basename(input_path))
-    output_file_path = f"{output_folder_path}/{filename}.{output_format}"
-    counter = 1
-    while os.path.exists(output_file_path):
-        output_file_path = f"{output_folder_path}/{filename}_{counter:02d}.{output_format}"
-        counter += 1
-    return output_file_path
-
-# inputフォルダ内の同じファイル（拡張子名が違う）の重複対策
-
-
-def get_unique_filepath(output_folder_path):
-    return os.path.join(output_folder_path, str(uuid.uuid4()))
-
-
-# 拡張子
 SUPPORTED_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".avif")
 PNG_EXT = "png"
 JPG_EXT = "jpg"
 JPEG_EXT = "jpeg"
 WEBP_EXT = "webp"
 AVIF_EXT = "avif"
+
+
+def get_output_fullpath(output_folder_path, filename, ext):
+    return f"{output_folder_path}/{filename}.{ext}"
 
 
 def is_supported_extension(file_path: str) -> bool:
@@ -66,7 +51,7 @@ def convert_with_transparent_color(image, transparent_color):
     return image
 
 
-def save_with_metadata(image, output_path, output_format, quality, metadata, lossless, is_fill_transparenct, transparent_color):
+def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless, is_fill_transparenct, transparent_color):
     """
     画像を指定の拡張子で保存する
     is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
@@ -105,7 +90,7 @@ def save_with_metadata(image, output_path, output_format, quality, metadata, los
     # jpgの場合のみJPEGに変換、それ以外はスルー
     ext = JPEG_EXT if ext == JPG_EXT else ext
     # メタデータ付き画像を保存
-    image.save(output_path, format=ext, quality=quality,
+    image.save(output_fullpath, format=ext, quality=quality,
                exif=exif_bytes, lossless=lossless)
 
 
@@ -124,74 +109,92 @@ def convert_images_in_folder(settings):
 
     input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color, cpu_num = settings
 
+    # 出力する画像ファイルとあらかじめ出力フォルダに
+    # 存在するファイル名が重複しないようにする
+    existed_output_filenames = set()
+    for filename in os.listdir(output_folder_path):
+        basename, ext = os.path.splitext(filename)
+        ext = ext.replace(".", "").lower()  # 拡張子の"."を削除
+        if ext == output_format:
+            existed_output_filenames.add(basename)
+
     # 画像ファイル単体を変換
     if os.path.isfile(input_path) and is_supported_extension(input_path):
-        output_path = avoid_filename_collision(
-            input_path, output_folder_path, output_format)
+        counter = 1
+        filename = os.path.basename(input_path)
+        basename = os.path.splitext(filename)[0]
+        while basename in existed_output_filenames:
+            basename = f"{basename}_{counter:03d}"
+            counter += 1
+        output_fullpath = get_output_fullpath(
+            output_folder_path, basename, output_format)
+
         try:
-            convert_image((input_path, output_path, output_format,
-                          quality, lossless, is_fill_transparenct, transparent_color))
+            convert_image((input_path,
+                           output_fullpath,
+                           output_format,
+                           quality,
+                           lossless,
+                           is_fill_transparenct,
+                           transparent_color))
         except Exception as e:
             raise ValueError(f"変換中にエラーが発生しました: {e}")
+
     # フォルダ内の画像を全て変換
-    else:
-        input_filepaths = [os.path.join(input_path, filename) for filename
-                           in os.listdir(
-            input_path) if is_supported_extension(filename)]
+    elif os.path.isdir(input_path):
+        output_filenames = set()
+        paths = {}
+        for filename in os.listdir(input_path):
+            if not is_supported_extension(filename):
+                continue
 
-        output_filepaths = []
-        output_paths_for_rename = []
-        for input_filepath in input_filepaths:
-            unique_path = get_unique_filepath(output_folder_path)
-            output_filepaths.append(unique_path)
-            # 後でリネームする用
-            output_paths_for_rename.append((unique_path, input_filepath))
+            # inputフォルダ内の同じファイル名（拡張子名が違う）の重複対策
+            counter = 1
+            basename = os.path.splitext(filename)[0]
+            # dictへのinによるキーの存在確認はO(1) で実行される
+            while basename in output_filenames or \
+                    basename in existed_output_filenames:
+                basename = f"{basename}_{counter:03d}"
+                counter += 1
+            output_filenames.add(basename)
 
+            input_fullpath = os.path.join(input_path, filename)
+            output_fullpath = get_output_fullpath(
+                output_folder_path, basename, output_format)
+            paths[input_fullpath] = output_fullpath
+
+        # プロセス準備
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
-            for input_filepath, output_filepath in zip(input_filepaths, output_filepaths):
+            for input_fullpath, output_fullpath in paths.items():
                 if not should_stop:
-                    futures.append(
-                        executor.submit(
-                            convert_image,
-                            (input_filepath, output_filepath, output_format,
-                             quality, lossless, is_fill_transparenct,
-                             transparent_color)))
+                    futures.append(executor.submit(
+                        convert_image,
+                        (input_fullpath,
+                         output_fullpath,
+                         output_format,
+                         quality,
+                         lossless,
+                         is_fill_transparenct,
+                         transparent_color)))
                 else:
                     break
 
             try:
                 start_time = time.time()
 
+                # プロセス実行
                 for future in as_completed(futures):
                     if not should_stop:
                         future.result()
                     else:
-                        raise Exception("画像の変換を停止しました")
-
-                # 変換完了後にリネーム
-                for unique_filepath, output_filepath in output_paths_for_rename:
-                    if not should_stop:
-                        o_path = avoid_filename_collision(
-                            output_filepath, output_folder_path, output_format)
-                        os.rename(unique_filepath, o_path)
-                    else:
-                        raise Exception("画像の変換を停止しました")
-
+                        raise Exception("変換処理をキャンセルしました")
             except Exception as e:
                 print(f"Task generated an exception: {e}")
-
                 # Futureをキャンセル
                 for future in futures:
                     if not future.running():
                         future.cancel()
-
-                # futureの状態を確認
-                # for future in futures:
-                #     print(
-                #         f"running: {future.running()}, cancelled: {future.cancelled()}")
-
-                # エラーを伝播
                 raise Exception("画像の変換を停止しました")
             except KeyboardInterrupt:
                 # ctrl+cで終了した場合
@@ -200,9 +203,12 @@ def convert_images_in_folder(settings):
                     process.terminate()
             finally:
                 end_time = time.time()
+
                 if not should_stop:
                     print(
                         f"Processing completed in {end_time - start_time} seconds.")
+    else:
+        raise ValueError(f"未対応のファイル形式です。")
 
 
 def can_convert(path):

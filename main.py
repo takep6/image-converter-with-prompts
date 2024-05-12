@@ -229,7 +229,7 @@ def main(page):
         quit_dialog.open = False
         page.update()
         converter.stop_process()
-        time.sleep(3)
+        time.sleep(5)
         page.window_destroy()
 
     quit_dialog = ft.AlertDialog(
