@@ -1,4 +1,5 @@
 import os
+import re
 import time
 
 import flet as ft
@@ -13,14 +14,6 @@ import image_converter as converter
 from config_loader import ConfigLoader
 from theme_loader import ThemeLoader
 
-"""
-TODO:
-gifファイルに対応
-フォルダ内の全てのフォルダの画像を変換する機能を実装する
-巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
-アニメーションや画像ファイルでないもの（拡張子だけ合ってる）が混ざっていた時の対応
-"""
-
 
 def main(page):
     # variables
@@ -32,7 +25,7 @@ def main(page):
     theme = ThemeLoader()
 
     # page settings
-    page.title = "Image Converter with prompt"
+    page.title = "Image Converter with prompts"
     page.theme_mode = theme.theme_val
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 30
@@ -337,20 +330,32 @@ def main(page):
 
         if is_input_path_empty:
             input_path.current.error_text = "フォルダパスまたはファイルパスを入力してください"
-            input_path.current.bgcolor = colors.RED_100
+            input_path.current.bgcolor = colors.ON_ERROR
         else:
             input_path.current.error_text = ""
             input_path.current.bgcolor = colors.BACKGROUND
 
         if is_output_path_empty:
             output_path.current.error_text = "フォルダパスを入力してください"
-            output_path.current.bgcolor = colors.RED_100
+            output_path.current.bgcolor = colors.ON_ERROR
         else:
             output_path.current.error_text = ""
             output_path.current.bgcolor = colors.BACKGROUND
 
         if is_input_path_empty or is_output_path_empty:
             page.update()
+            return
+
+        # フォルダ名の無効な文字をチェック
+        # 全ての文字を検知していないので注意
+        invalid_characters = r'[*?"<>|]'
+        contain_invalid_char = bool(
+            re.search(invalid_characters, output_path.current.value))
+
+        if contain_invalid_char:
+            output_path.current.error_text = r'無効な文字 * ? " < > : | が含まれています'
+            output_path.current.bgcolor = colors.ON_ERROR
+            output_path.current.update()
             return
 
         input_path_val = input_path.current.value

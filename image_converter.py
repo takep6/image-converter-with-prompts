@@ -26,7 +26,7 @@ AVIF_EXT_BIN = b'\x00\x00\x00\x20ftypavif'
 
 def is_supported_extension(file_path):
     """
-    ファイルのマジックナンバーから拡張子を判定する
+    ファイルのヘッダーから拡張子を判定する
     """
     with open(file_path, 'rb') as f:
         header = f.read(16)  # ファイルの先頭16バイトを読み込む
@@ -111,9 +111,10 @@ def convert_image(settings):
     input_path, output_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
     with Image.open(input_path) as image:
-        # if output_format == PNG_EXT or output_format == WEBP_EXT or output_format == AVIF_EXT:
-        #     if image.is_animated:
-        #         return
+        # アニメーション画像は変換しない
+        if input_path.endswith((PNG_EXT, WEBP_EXT, AVIF_EXT)):
+            if image.is_animated:
+                return
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless, is_fill_transparenct, transparent_color)
@@ -154,7 +155,7 @@ def convert_images_in_folder(settings):
                            is_fill_transparenct,
                            transparent_color))
         except Exception as e:
-            raise ValueError(f"変換中にエラーが発生しました: {e}")
+            print(f"変換中にエラーが発生しました: {e}")
 
     # フォルダ内の画像を全て変換
     elif os.path.isdir(input_path):
@@ -207,12 +208,12 @@ def convert_images_in_folder(settings):
                     else:
                         raise Exception("変換処理をキャンセルしました")
             except Exception as e:
-                print(f"Task generated an exception: {e}")
+                print(f"変換中にエラーが発生しました: {e}")
                 # Futureをキャンセル
                 for future in futures:
                     if not future.running():
                         future.cancel()
-                raise Exception("画像の変換を停止しました")
+
             except KeyboardInterrupt:
                 # ctrl+cで終了した場合
                 # プロセスに終了要求(データが不完全でも終了)
@@ -224,8 +225,11 @@ def convert_images_in_folder(settings):
                 if not should_stop:
                     print(
                         f"Processing completed in {end_time - start_time} seconds.")
+                else:
+                    raise Exception("画像の変換を停止しました")
+
     else:
-        raise ValueError(f"未対応のファイル形式です。")
+        raise ValueError("未対応のファイル形式です。")
 
 
 def can_convert(path):
