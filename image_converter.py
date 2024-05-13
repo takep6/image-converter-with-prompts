@@ -17,15 +17,28 @@ JPG_EXT = "jpg"
 JPEG_EXT = "jpeg"
 WEBP_EXT = "webp"
 AVIF_EXT = "avif"
+PNG_EXT_BIN = b'\x89PNG\r\n\x1a\n'
+JPG_EXT_BIN = b'\xff\xd8\xff'
+JPEG_EXT_BIN = b'\xff\xd8\xdd'
+WEBP_EXT_BIN = b'RIFF'
+AVIF_EXT_BIN = b'\x00\x00\x00\x20ftypavif'
+
+
+def is_supported_extension(file_path):
+    """
+    ファイルのマジックナンバーから拡張子を判定する
+    """
+    with open(file_path, 'rb') as f:
+        header = f.read(16)  # ファイルの先頭16バイトを読み込む
+        return header.startswith(PNG_EXT_BIN) or \
+            header.startswith(JPG_EXT_BIN) or \
+            header.startswith(JPEG_EXT_BIN) or \
+            header.startswith(WEBP_EXT_BIN) or \
+            header.startswith(AVIF_EXT_BIN)
 
 
 def get_output_fullpath(output_folder_path, filename, ext):
     return f"{output_folder_path}/{filename}.{ext}"
-
-
-def is_supported_extension(file_path: str) -> bool:
-    # ファイルパスの拡張子が一致するかどうか
-    return file_path.lower().endswith(SUPPORTED_EXTENSIONS)
 
 
 def extract_metadata(image, input_path):
@@ -98,6 +111,9 @@ def convert_image(settings):
     input_path, output_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
 
     with Image.open(input_path) as image:
+        # if output_format == PNG_EXT or output_format == WEBP_EXT or output_format == AVIF_EXT:
+        #     if image.is_animated:
+        #         return
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless, is_fill_transparenct, transparent_color)
@@ -145,7 +161,9 @@ def convert_images_in_folder(settings):
         output_filenames = set()
         paths = {}
         for filename in os.listdir(input_path):
-            if not is_supported_extension(filename):
+            input_fullpath = os.path.join(input_path, filename)
+
+            if not is_supported_extension(input_fullpath):
                 continue
 
             # inputフォルダ内の同じファイル名（拡張子名が違う）の重複対策
@@ -158,7 +176,6 @@ def convert_images_in_folder(settings):
                 counter += 1
             output_filenames.add(basename)
 
-            input_fullpath = os.path.join(input_path, filename)
             output_fullpath = get_output_fullpath(
                 output_folder_path, basename, output_format)
             paths[input_fullpath] = output_fullpath
@@ -219,7 +236,8 @@ def can_convert(path):
     # フォルダ内に画像ファイルが存在するかどうか
     if os.path.isdir(path):
         for file in os.listdir(path):
-            if is_supported_extension(file):
+            fullpath = os.path.join(path, file)
+            if is_supported_extension(fullpath):
                 return True
     return False
 
