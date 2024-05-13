@@ -1,5 +1,4 @@
 import os
-import signal
 import time
 
 import flet as ft
@@ -16,11 +15,10 @@ from theme_loader import ThemeLoader
 
 """
 TODO:
-画像変換後に一時的な命名->重複チェックしてから保存
-gifファイルにも対応
-ディレクトリを作成してからそこに変換した画像を保存
+gifファイルに対応
 フォルダ内の全てのフォルダの画像を変換する機能を実装する
 巨大な画像が変換できるか、大量の画像でも問題なく完遂できるかチェック
+アニメーションや画像ファイルでないもの（拡張子だけ合ってる）が混ざっていた時の対応
 """
 
 
@@ -649,5 +647,5 @@ def main(page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
     converter.set_signals()
+    ft.app(target=main)

@@ -3,8 +3,8 @@ import signal
 import sys
 import threading
 import time
-import uuid
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
+                                as_completed)
 
 import piexif
 import piexif.helper
@@ -165,28 +165,28 @@ def convert_images_in_folder(settings):
 
         # プロセス準備
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
-            futures = []
-            for input_fullpath, output_fullpath in paths.items():
-                if not should_stop:
-                    futures.append(executor.submit(
-                        convert_image,
-                        (input_fullpath,
-                         output_fullpath,
-                         output_format,
-                         quality,
-                         lossless,
-                         is_fill_transparenct,
-                         transparent_color)))
-                else:
-                    break
-
             try:
+                futures = []
+                for input_fullpath, output_fullpath in paths.items():
+                    if not should_stop:
+                        futures.append(executor.submit(
+                            convert_image,
+                            (input_fullpath,
+                             output_fullpath,
+                             output_format,
+                             quality,
+                             lossless,
+                             is_fill_transparenct,
+                             transparent_color)))
+                    else:
+                        break
+
                 start_time = time.time()
 
                 # プロセス実行
                 for future in as_completed(futures):
                     if not should_stop:
-                        future.result()
+                        _ = future.result()
                     else:
                         raise Exception("変換処理をキャンセルしました")
             except Exception as e:
