@@ -10,6 +10,7 @@ from flet import (Card, Checkbox, Column, Container, Dropdown, ElevatedButton,
                   TextField, alignment, colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
+import const as exts
 import image_converter as converter
 from config_loader import ConfigLoader
 from theme_loader import ThemeLoader
@@ -140,20 +141,20 @@ def main(page):
 
     # format value
     def switch_options_value(ext):
-        if ext == "png":
+        if ext == exts.PNG_EXT:
             lossless.current.value = True
             lossless.current.disabled = True
             set_comp_ratio(100)
             set_comp_ratio_to_text(100)
             compression_ratio.current.disabled = True
             is_fill_transparent.current.disabled = False
-        elif ext == "jpg":
+        elif ext == exts.JPG_EXT:
             lossless.current.value = False
             lossless.current.disabled = True
             compression_ratio.current.disabled = False
             is_fill_transparent.current.value = True
             is_fill_transparent.current.disabled = True
-        elif ext == "avif":
+        elif ext == exts.AVIF_EXT:
             lossless.current.value = False
             lossless.current.disabled = True
             compression_ratio.current.disabled = False
@@ -361,9 +362,9 @@ def main(page):
         input_path_val = input_path.current.value
         output_path_val = output_path.current.value
         file_ext = file_exts_dropdown.current.value.lower()
-        if file_ext == "png":
+        if file_ext == exts.PNG_EXT:
             is_lossless = True
-        elif file_ext == "jpg":
+        elif file_ext == exts.JPG_EXT:
             is_lossless = False
         else:
             is_lossless = lossless.current.value
@@ -537,12 +538,14 @@ def main(page):
                                                     ref=file_exts_dropdown,
                                                     value=config.ext_val,
                                                     options=[
-                                                        dropdown.Option("jpg"),
-                                                        dropdown.Option("png"),
                                                         dropdown.Option(
-                                                            "webp"),
+                                                            exts.JPG_EXT),
                                                         dropdown.Option(
-                                                            "avif"),
+                                                            exts.PNG_EXT),
+                                                        dropdown.Option(
+                                                            exts.WEBP_EXT),
+                                                        dropdown.Option(
+                                                            exts.AVIF_EXT),
                                                     ],
                                                     width=80,
                                                     on_change=select_ext
@@ -630,7 +633,7 @@ def main(page):
                     ]),
                 Column(
                     scroll=ft.ScrollMode.ALWAYS,
-                    height=200,
+                    height=220,
                     controls=[
                         Container(
                             alignment=alignment.center,

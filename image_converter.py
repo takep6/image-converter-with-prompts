@@ -3,25 +3,14 @@ import signal
 import sys
 import threading
 import time
-from concurrent.futures import (ProcessPoolExecutor, ThreadPoolExecutor,
-                                as_completed)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import piexif
 import piexif.helper
 import pillow_avif
 from PIL import Image, PngImagePlugin
 
-SUPPORTED_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".avif")
-PNG_EXT = "png"
-JPG_EXT = "jpg"
-JPEG_EXT = "jpeg"
-WEBP_EXT = "webp"
-AVIF_EXT = "avif"
-PNG_EXT_BIN = b'\x89PNG\r\n\x1a\n'
-JPG_EXT_BIN = b'\xff\xd8\xff'
-JPEG_EXT_BIN = b'\xff\xd8\xdd'
-WEBP_EXT_BIN = b'RIFF'
-AVIF_EXT_BIN = b'\x00\x00\x00\x20ftypavif'
+import const as exts
 
 
 def is_supported_extension(file_path):
@@ -30,11 +19,7 @@ def is_supported_extension(file_path):
     """
     with open(file_path, 'rb') as f:
         header = f.read(16)  # ファイルの先頭16バイトを読み込む
-        return header.startswith(PNG_EXT_BIN) or \
-            header.startswith(JPG_EXT_BIN) or \
-            header.startswith(JPEG_EXT_BIN) or \
-            header.startswith(WEBP_EXT_BIN) or \
-            header.startswith(AVIF_EXT_BIN)
+        return header.startswith(exts.SUPPORTED_EXTENSIONS_BIN)
 
 
 def get_output_fullpath(output_folder_path, filename, ext):
@@ -43,9 +28,9 @@ def get_output_fullpath(output_folder_path, filename, ext):
 
 def extract_metadata(image, input_path):
     metadata = {}
-    if input_path.lower().endswith(PNG_EXT):
+    if input_path.lower().endswith(exts.PNG_EXT):
         metadata = image.info
-    elif input_path.lower().endswith((JPEG_EXT, JPG_EXT, WEBP_EXT, AVIF_EXT)):
+    elif input_path.lower().endswith((exts.JPEG_EXT, exts.JPG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
         if "exif" in image.info.keys():
             exif_dict = piexif.load(image.info["exif"])
             if piexif.ExifIFD.UserComment in exif_dict["Exif"]:
@@ -72,24 +57,24 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
     ext = output_format.lower()
     exif_bytes = None
 
-    if ext == PNG_EXT:
+    if ext == exts.PNG_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
-    elif ext in (JPEG_EXT, JPG_EXT):
+    elif ext in (exts.JPEG_EXT, exts.JPG_EXT):
         if image.mode == "RGBA":
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-    elif ext == WEBP_EXT:
+    elif ext == exts.WEBP_EXT:
         if is_fill_transparenct:
             image = convert_with_transparent_color(image, transparent_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
-    elif ext == AVIF_EXT:
+    elif ext == exts.AVIF_EXT:
         image.encoderinfo = {}
         image.encoderinfo['alpha_premultiplied'] = False
         image.encoderinfo['autotiling'] = True
@@ -100,8 +85,8 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
     else:
         raise ValueError(f"Invalid output format: {output_format}")
 
-    # jpgの場合のみJPEGに変換、それ以外はスルー
-    ext = JPEG_EXT if ext == JPG_EXT else ext
+    # jpgの場合のみjpegに変換、それ以外はスルー
+    ext = exts.JPEG_EXT if ext == exts.JPG_EXT else ext
     # メタデータ付き画像を保存
     image.save(output_fullpath, format=ext, quality=quality,
                exif=exif_bytes, lossless=lossless)
@@ -112,7 +97,7 @@ def convert_image(settings):
 
     with Image.open(input_path) as image:
         # アニメーション画像は変換しない
-        if input_path.endswith((PNG_EXT, WEBP_EXT, AVIF_EXT)):
+        if input_path.endswith((exts.PNG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
             if image.is_animated:
                 return
         metadata = extract_metadata(image, input_path)
