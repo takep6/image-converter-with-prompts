@@ -10,10 +10,10 @@ from flet import (Card, Checkbox, Column, Container, Dropdown, ElevatedButton,
                   TextField, alignment, colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
-import const as exts
-import image_converter as converter
-from config_loader import ConfigLoader
-from theme_loader import ThemeLoader
+import image_converter.const as exts
+import image_converter.image_converter as converter
+from image_converter.config_loader import ConfigLoader
+from image_converter.theme_loader import ThemeLoader
 
 
 def main(page):

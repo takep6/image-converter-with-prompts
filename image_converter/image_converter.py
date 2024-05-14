@@ -10,7 +10,7 @@ import piexif.helper
 import pillow_avif
 from PIL import Image, PngImagePlugin
 
-import const as exts
+import image_converter.const as exts
 
 
 def is_supported_extension(file_path):
