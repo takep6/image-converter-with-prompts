@@ -633,14 +633,14 @@ def main(page):
                     ]),
                 Column(
                     scroll=ft.ScrollMode.ALWAYS,
-                    height=220,
+                    height=230,
                     controls=[
                         Container(
                             alignment=alignment.center,
                             padding=20,
                             content=TextField(
                                 ref=log_output,
-                                label="ログ", value="-",
+                                label="ログ", value="-", text_size=14,
                                 multiline=True, read_only=True, width=600)
                         ),
                     ]),
