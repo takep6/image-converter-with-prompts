@@ -106,10 +106,12 @@ png, jpg, webp, avif から選択できます。
 
 ## ライセンス
 このプロジェクトは [AGPL-3.0 license](LICENSE.txt) ライセンスの元にライセンスされています。
+<br><br>
 
 ## 謝辞
 [stable-diffusion-webui（AUTOMATIC1111氏）](https://github.com/AUTOMATIC1111/stable-diffusion-webui)<br>
-[stable-diffusion-webui-forge（lllyasviel氏）](https://github.com/lllyasviel/stable-diffusion-webui-forge)<br>
+[stable-diffusion-webui-forge（lllyasviel氏）](https://github.com/lllyasviel/stable-diffusion-webui-forge)
+<br><br>
 アプリを製作するにあたって一部のコードを使用させていただきました。感謝いたします。
 
 
