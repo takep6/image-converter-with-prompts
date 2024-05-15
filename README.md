@@ -14,7 +14,7 @@ NovelAI等のクラウドサービスで生成された画像のプロンプト�
 <br><br>
 
 ## 推奨環境
-Windows10, 11
+Windows10, 11<br>
 Python3.8以上<br><br>
 
 ## 導入方法
