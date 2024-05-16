@@ -68,6 +68,10 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
+        # pngのみpnginfoに保存する必要がある
+        image.save(output_fullpath, format=ext, pnginfo=metadata_obj,
+                   quality=quality, lossless=lossless)
+        return
     elif ext in (exts.JPEG_EXT, exts.JPG_EXT, exts.WEBP_EXT):
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
@@ -80,7 +84,7 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
     else:
         raise ValueError(f"Invalid output format: {output_format}")
 
-    # format="jpg"ではエラーが起こるため"jpeg"に変換
+    # extがjpgのとき、format="jpg"ではエラーが起こるため"jpeg"に変換
     ext = exts.JPEG_EXT if ext == exts.JPG_EXT else ext
     # メタデータ付き画像を保存
     image.save(output_fullpath, format=ext, quality=quality,
