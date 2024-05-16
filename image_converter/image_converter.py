@@ -27,6 +27,9 @@ def get_output_fullpath(output_folder_path, filename, ext):
 
 
 def extract_metadata(image, input_path):
+    """
+    画像のExif（メタデータ）を取得する
+    """
     metadata = {}
     if input_path.lower().endswith(exts.PNG_EXT):
         metadata = image.info
@@ -41,7 +44,9 @@ def extract_metadata(image, input_path):
 
 
 def fill_image_with_fill_color(image, fill_color):
-    # 透過部分を指定した色でフィルする
+    """
+    透過部分を指定した色で塗りつぶす
+    """
     if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
         background = Image.new("RGB", image.size, fill_color)
         background.paste(image, mask=image.split()[3])  # アルファチャンネルをマスクとして使用
@@ -49,7 +54,7 @@ def fill_image_with_fill_color(image, fill_color):
     return image
 
 
-def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless, is_fill_color, fill_color):
+def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless):
     """
     画像を指定の拡張子で保存する
     is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
@@ -57,35 +62,25 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
     ext = output_format.lower()
     exif_bytes = None
 
+    # Exif情報（メタデータ）を拡張子に合わせて整形
     if ext == exts.PNG_EXT:
-        if is_fill_color:
-            image = fill_image_with_fill_color(image, fill_color)
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
-    elif ext in (exts.JPEG_EXT, exts.JPG_EXT):
-        if image.mode == "RGBA":
-            image = fill_image_with_fill_color(image, fill_color)
-        exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
-            metadata.get("parameters", ""), encoding="unicode")}})
-    elif ext == exts.WEBP_EXT:
-        if is_fill_color:
-            image = fill_image_with_fill_color(image, fill_color)
+    elif ext in (exts.JPEG_EXT, exts.JPG_EXT, exts.WEBP_EXT):
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
     elif ext == exts.AVIF_EXT:
         image.encoderinfo = {}
         image.encoderinfo['alpha_premultiplied'] = False
         image.encoderinfo['autotiling'] = True
-        if is_fill_color:
-            image = fill_image_with_fill_color(image, fill_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
     else:
         raise ValueError(f"Invalid output format: {output_format}")
 
-    # jpgの場合のみjpegに変換、それ以外はスルー
+    # format="jpg"ではエラーが起こるため"jpeg"に変換
     ext = exts.JPEG_EXT if ext == exts.JPG_EXT else ext
     # メタデータ付き画像を保存
     image.save(output_fullpath, format=ext, quality=quality,
@@ -100,9 +95,14 @@ def convert_image(config):
         if input_path.endswith((exts.PNG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
             if image.is_animated:
                 return
+        # 透明部分を塗りつぶす
+        if is_fill_color:
+            image = fill_image_with_fill_color(image, fill_color)
+        # 画像のプロンプト情報を取得
         metadata = extract_metadata(image, input_path)
+        # 保存
         save_with_metadata(image, output_path, output_format,
-                           quality, metadata, lossless, is_fill_color, fill_color)
+                           quality, metadata, lossless)
 
 
 def convert_images_in_folder(config):
