@@ -190,10 +190,12 @@ def main(page):
             print("この OS はサポートされていません。")
 
     # toggle theme
+    def get_textfield_border_color():
+        return colors.BLACK if page.theme_mode == LIGHT_THEME \
+            else colors.BLUE_600
 
     def toggle_textfield_border():
-        border_color = colors.BLACK if page.theme_mode == LIGHT_THEME \
-            else colors.BLUE_600
+        border_color = get_textfield_border_color()
         input_path_textfield.current.border_color = border_color
         output_path_textfield.current.border_color = border_color
         log_output.current.border_color = border_color
@@ -262,19 +264,12 @@ def main(page):
     page.overlay.append(overlay_stack)
 
     # set process num (cpu num)
-
-    def set_cpu_num(num):
-        cpu_num_slider.current.value = num
-        cpu_num_slider.current.update()
-
-    def update_cpu_text(num):
-        cpu_num_text.current.value = f"同時プロセス実行数: {num}"
-        cpu_num_text.current.update()
-
     def change_cpu_num(e):
-        num = int(e.control.value)
-        set_cpu_num(num)
-        update_cpu_text(num)
+        cpu_num = int(e.control.value)
+        cpu_num_slider.current.value = cpu_num
+        cpu_num_text.current.value = f"同時プロセス実行数: {cpu_num}"
+        cpu_num_slider.current.update()
+        cpu_num_text.current.update()
 
     # detailed configuration
     end_drawer = NavigationDrawer(
@@ -393,7 +388,8 @@ def main(page):
         log_output.current.value += f"出力フォルダパス: {output_path}\n"
         log_output.current.value += f"変換後の拡張子: *.{file_ext}\n"
         log_output.current.value += f"同時プロセス実行数: {cpu_num}\n"
-        log_output.current.value += f"可逆圧縮モード: {is_lossless}\n"
+        lossless_msg = "ON" if is_lossless else "OFF"
+        log_output.current.value += f"可逆圧縮モード: {lossless_msg}\n"
         if not is_lossless:
             log_output.current.value += f"品質: {ratio}%\n"
         if is_fill_color:
@@ -406,28 +402,29 @@ def main(page):
         page.update()
 
         # Actual comversion logic goes here
-        try:
-            nonlocal is_running_process
-            is_running_process = True
+        nonlocal is_running_process
+        is_running_process = True
 
-            settings = (input_path, output_path,
-                        file_ext, ratio, is_lossless,
-                        is_fill_color, t_color, cpu_num)
+        conversion_params = (input_path, output_path,
+                             file_ext, ratio, is_lossless,
+                             is_fill_color, t_color, cpu_num)
+        # 実行
+        isError, message = converter.convert_images_concurrently(
+            conversion_params)
+        log_output.current.value += message
 
-            if converter.can_convert(input_path):
-                converter.convert_images_in_folder(settings)
-                log_output.current.value += "画像の変換が完了しました"
-            else:
-                log_output.current.value = "画像ファイルが存在しません"
+        if isError:
+            log_output.current.error_text = "---"
+            log_output.current.bgcolor = colors.ON_ERROR
+        else:
+            log_output.current.error_text = ""
+            log_output.current.bgcolor = colors.BACKGROUND
 
-        except ValueError as e:
-            log_output.current.value += f"変換中にエラーが発生しました\n{e}"
-        finally:
-            page.remove(progress_bar)
-            run_btn.current.disabled = False
-            stop_btn.current.disabled = True
-            is_running_process = False
-            page.update()
+        page.remove(progress_bar)
+        run_btn.current.disabled = False
+        stop_btn.current.disabled = True
+        is_running_process = False
+        page.update()
 
     # stop
     def stop_conversion(e):
@@ -645,7 +642,7 @@ def main(page):
                             content=TextField(
                                 ref=log_output,
                                 label="ログ", value="-", text_size=14,
-                                multiline=True, read_only=True, width=600)
+                                multiline=True, read_only=True, width=600, filled=False)
                         ),
                     ]),
             ])
