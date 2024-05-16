@@ -40,16 +40,16 @@ def extract_metadata(image, input_path):
     return metadata
 
 
-def convert_with_transparent_color(image, transparent_color):
+def fill_image_with_fill_color(image, fill_color):
     # 透過部分を指定した色でフィルする
     if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
-        background = Image.new("RGB", image.size, transparent_color)
+        background = Image.new("RGB", image.size, fill_color)
         background.paste(image, mask=image.split()[3])  # アルファチャンネルをマスクとして使用
         image = background
     return image
 
 
-def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless, is_fill_transparenct, transparent_color):
+def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless, is_fill_color, fill_color):
     """
     画像を指定の拡張子で保存する
     is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
@@ -58,28 +58,28 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
     exif_bytes = None
 
     if ext == exts.PNG_EXT:
-        if is_fill_transparenct:
-            image = convert_with_transparent_color(image, transparent_color)
+        if is_fill_color:
+            image = fill_image_with_fill_color(image, fill_color)
         metadata_obj = PngImagePlugin.PngInfo()
         for key, value in metadata.items():
             if isinstance(key, str) and isinstance(value, str):
                 metadata_obj.add_text(key, value)
     elif ext in (exts.JPEG_EXT, exts.JPG_EXT):
         if image.mode == "RGBA":
-            image = convert_with_transparent_color(image, transparent_color)
+            image = fill_image_with_fill_color(image, fill_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
     elif ext == exts.WEBP_EXT:
-        if is_fill_transparenct:
-            image = convert_with_transparent_color(image, transparent_color)
+        if is_fill_color:
+            image = fill_image_with_fill_color(image, fill_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
     elif ext == exts.AVIF_EXT:
         image.encoderinfo = {}
         image.encoderinfo['alpha_premultiplied'] = False
         image.encoderinfo['autotiling'] = True
-        if is_fill_transparenct:
-            image = convert_with_transparent_color(image, transparent_color)
+        if is_fill_color:
+            image = fill_image_with_fill_color(image, fill_color)
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
             metadata.get("parameters", ""), encoding="unicode")}})
     else:
@@ -92,8 +92,8 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
                exif=exif_bytes, lossless=lossless)
 
 
-def convert_image(settings):
-    input_path, output_path, output_format, quality, lossless, is_fill_transparenct, transparent_color = settings
+def convert_image(config):
+    input_path, output_path, output_format, quality, lossless, is_fill_color, fill_color = config
 
     with Image.open(input_path) as image:
         # アニメーション画像は変換しない
@@ -102,14 +102,15 @@ def convert_image(settings):
                 return
         metadata = extract_metadata(image, input_path)
         save_with_metadata(image, output_path, output_format,
-                           quality, metadata, lossless, is_fill_transparenct, transparent_color)
+                           quality, metadata, lossless, is_fill_color, fill_color)
 
 
-def convert_images_in_folder(settings):
+def convert_images_in_folder(config):
+    input_path, output_folder_path, output_format, quality, lossless, is_fill_color, fill_color, cpu_num = config
+
+    os.makedirs(output_folder_path, exist_ok=True)
     global should_stop
     should_stop = False
-
-    input_path, output_folder_path, output_format, quality, lossless, is_fill_transparenct, transparent_color, cpu_num = settings
 
     # 出力する画像ファイルとあらかじめ出力フォルダに
     # 存在するファイル名が重複しないようにする
@@ -137,8 +138,8 @@ def convert_images_in_folder(settings):
                            output_format,
                            quality,
                            lossless,
-                           is_fill_transparenct,
-                           transparent_color))
+                           is_fill_color,
+                           fill_color))
         except Exception as e:
             print(f"変換中にエラーが発生しました: {e}")
 
@@ -179,8 +180,8 @@ def convert_images_in_folder(settings):
                              output_format,
                              quality,
                              lossless,
-                             is_fill_transparenct,
-                             transparent_color)))
+                             is_fill_color,
+                             fill_color)))
                     else:
                         break
 

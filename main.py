@@ -2,11 +2,14 @@ import os
 import re
 import time
 
-import flet as ft
+import flet
 import psutil
-from flet import (Card, Checkbox, Column, Container, Dropdown, ElevatedButton,
-                  FilePicker, FilePickerResultEvent, Icon, MainAxisAlignment,
-                  ProgressBar, Ref, Row, Slider, Switch, Text, TextButton,
+from flet import (AlertDialog, Card, Checkbox, Column, Container,
+                  CrossAxisAlignment, Divider, Dropdown, ElevatedButton,
+                  FilePicker, FilePickerFileType, FilePickerResultEvent,
+                  FloatingActionButton, FontWeight, Icon, MainAxisAlignment,
+                  Margin, NavigationDrawer, ProgressBar, ProgressRing, Ref,
+                  Row, ScrollMode, Slider, Stack, Switch, Text, TextButton,
                   TextField, alignment, colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
@@ -18,7 +21,7 @@ from image_converter.theme_loader import ThemeLoader
 
 def main(page):
     # variables
-    font_bold = ft.FontWeight.BOLD
+    font_bold = FontWeight.BOLD
     is_running_process = False
     LIGHT_THEME = "light"
     DARK_THEME = "dark"
@@ -27,24 +30,24 @@ def main(page):
 
     # page settings
     page.title = "Image Converter with prompts"
-    page.theme_mode = theme.theme_val
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.theme_mode = theme.theme
+    page.horizontal_alignment = CrossAxisAlignment.CENTER
     page.padding = 30
     page.window_width = 800
     page.window_height = 1000
     max_cpu_num = psutil.cpu_count(logical=True)
 
     # Control Ref
-    input_path = Ref[TextField]()
-    output_path = Ref[TextField]()
+    input_path_textfield = Ref[TextField]()
+    output_path_textfield = Ref[TextField]()
     file_exts_dropdown = Ref[Dropdown]()
-    compression_ratio = Ref[Slider]()
-    compression_ratio_text = Ref[Text]()
+    quality_slider = Ref[Slider]()
+    quality_text = Ref[Text]()
     lossless = Ref[Switch]()
     log_output = Ref[TextField]()
     run_btn = Ref[ElevatedButton]()
     stop_btn = Ref[ElevatedButton]()
-    is_fill_transparent = Ref[Checkbox]()
+    fill_color_checkbox = Ref[Checkbox]()
     cpu_num_slider = Ref[Slider]()
     cpu_num_text = Ref[Text]()
 
@@ -54,14 +57,14 @@ def main(page):
         color_dialog.open = True
         page.update()
 
-    color_picker = ColorPicker(color=config.transparent_color_val, width=300)
-    transparent_color = Container(
+    color_picker = ColorPicker(color=config.fill_color, width=300)
+    fill_color = Container(
         width=60, height=35, border_radius=5,
-        bgcolor=config.transparent_color_val,
+        bgcolor=config.fill_color,
         on_click=open_color_picker)
 
     def change_color(e):
-        transparent_color.bgcolor = color_picker.color
+        fill_color.bgcolor = color_picker.color
         color_dialog.open = False
         page.update()
 
@@ -69,11 +72,11 @@ def main(page):
         color_dialog.open = False
         color_dialog.update()
 
-    color_dialog = ft.AlertDialog(
+    color_dialog = AlertDialog(
         content=color_picker,
         actions=[
-            ft.TextButton("決定", on_click=change_color),
-            ft.TextButton("キャンセル", on_click=close_dialog),
+            TextButton("決定", on_click=change_color),
+            TextButton("キャンセル", on_click=close_dialog),
         ],
         actions_alignment=MainAxisAlignment.END,
     )
@@ -81,28 +84,28 @@ def main(page):
     # FilePicker
 
     def select_input_path(e: FilePickerResultEvent):
-        input_path.current.value = e.path if e.path \
-            else input_path.current.value
-        if input_path.current.value != "":
-            input_path.current.bgcolor = colors.BACKGROUND
-            input_path.current.error_text = ""
-        input_path.current.update()
+        input_path_textfield.current.value = e.path if e.path \
+            else input_path_textfield.current.value
+        if input_path_textfield.current.value != "":
+            input_path_textfield.current.bgcolor = colors.BACKGROUND
+            input_path_textfield.current.error_text = ""
+        input_path_textfield.current.update()
 
     def select_output_path(e: FilePickerResultEvent):
-        output_path.current.value = e.path if e.path \
-            else output_path.current.value
-        if output_path.current.value != "":
-            output_path.current.bgcolor = colors.BACKGROUND
-            output_path.current.error_text = ""
-        output_path.current.update()
+        output_path_textfield.current.value = e.path if e.path \
+            else output_path_textfield.current.value
+        if output_path_textfield.current.value != "":
+            output_path_textfield.current.bgcolor = colors.BACKGROUND
+            output_path_textfield.current.error_text = ""
+        output_path_textfield.current.update()
 
     def select_input_filepath(e: FilePickerResultEvent):
-        input_path.current.value = e.files[0].path \
-            if e.files else input_path.current.value
-        if input_path.current.value != "":
-            input_path.current.bgcolor = colors.BACKGROUND
-            input_path.current.error_text = ""
-        input_path.current.update()
+        input_path_textfield.current.value = e.files[0].path \
+            if e.files else input_path_textfield.current.value
+        if input_path_textfield.current.value != "":
+            input_path_textfield.current.bgcolor = colors.BACKGROUND
+            input_path_textfield.current.error_text = ""
+        input_path_textfield.current.update()
 
     pick_input_path_dialog = FilePicker(on_result=select_input_path)
     pick_output_path_dialog = FilePicker(on_result=select_output_path)
@@ -114,27 +117,27 @@ def main(page):
     ])
 
     # compression value
-    def change_comp_ratio_label(ratio):
+    def change_quality_label(ratio):
         if ratio <= 30:
-            compression_ratio.current.label = "ファイルサイズ 小"
+            quality_slider.current.label = "ファイルサイズ 小"
         elif ratio <= 70:
-            compression_ratio.current.label = "ファイルサイズ 中"
+            quality_slider.current.label = "ファイルサイズ 中"
         else:
-            compression_ratio.current.label = "ファイルサイズ 大"
+            quality_slider.current.label = "ファイルサイズ 大"
 
-    def set_comp_ratio_to_text(ratio):
-        compression_ratio_text.current.value = f"品質: {ratio} %"
-        compression_ratio_text.current.update()
+    def set_quality_to_text(ratio):
+        quality_text.current.value = f"品質: {ratio} %"
+        quality_text.current.update()
 
-    def set_comp_ratio(ratio):
-        compression_ratio.current.value = ratio
+    def set_quality(ratio):
+        quality_slider.current.value = ratio
 
-    def change_comp_ratio(e):
+    def change_quality(e):
         ratio = int(e.control.value)
-        set_comp_ratio(ratio)
-        change_comp_ratio_label(ratio)
-        set_comp_ratio_to_text(ratio)
-        compression_ratio.current.update()
+        set_quality(ratio)
+        change_quality_label(ratio)
+        set_quality_to_text(ratio)
+        quality_slider.current.update()
 
     # progress bar
     progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
@@ -144,25 +147,25 @@ def main(page):
         if ext == exts.PNG_EXT:
             lossless.current.value = True
             lossless.current.disabled = True
-            set_comp_ratio(100)
-            set_comp_ratio_to_text(100)
-            compression_ratio.current.disabled = True
-            is_fill_transparent.current.disabled = False
+            set_quality(100)
+            set_quality_to_text(100)
+            quality_slider.current.disabled = True
+            fill_color_checkbox.current.disabled = False
         elif ext == exts.JPG_EXT:
             lossless.current.value = False
             lossless.current.disabled = True
-            compression_ratio.current.disabled = False
-            is_fill_transparent.current.value = True
-            is_fill_transparent.current.disabled = True
+            quality_slider.current.disabled = False
+            fill_color_checkbox.current.value = True
+            fill_color_checkbox.current.disabled = True
         elif ext == exts.AVIF_EXT:
             lossless.current.value = False
             lossless.current.disabled = True
-            compression_ratio.current.disabled = False
-            is_fill_transparent.current.disabled = False
+            quality_slider.current.disabled = False
+            fill_color_checkbox.current.disabled = False
         else:
             lossless.current.disabled = False
-            compression_ratio.current.disabled = False
-            is_fill_transparent.current.disabled = False
+            quality_slider.current.disabled = False
+            fill_color_checkbox.current.disabled = False
 
     def select_ext(e):
         switch_options_value(e.control.value)
@@ -170,12 +173,12 @@ def main(page):
 
     def open_input_dir(e):
         # ファイルかフォルダかを判別
-        path = input_path.current.value
+        path = input_path_textfield.current.value
         path = os.path.dirname(path) if os.path.isfile(path) else path
         open_dir(path)
 
     def open_output_dir(e):
-        open_dir(output_path.current.value)
+        open_dir(output_path_textfield.current.value)
 
     def open_dir(path):
         # OS によって適切なコマンドを使ってフォルダを開く
@@ -191,8 +194,8 @@ def main(page):
     def toggle_textfield_border():
         border_color = colors.BLACK if page.theme_mode == LIGHT_THEME \
             else colors.BLUE_600
-        input_path.current.border_color = border_color
-        output_path.current.border_color = border_color
+        input_path_textfield.current.border_color = border_color
+        output_path_textfield.current.border_color = border_color
         log_output.current.border_color = border_color
 
     def toggle_theme(e):
@@ -203,8 +206,8 @@ def main(page):
         page.update()
 
     def toggle_transparency(e):
-        is_fill_transparent.current.value = e.control.value
-        is_fill_transparent.current.update()
+        fill_color_checkbox.current.value = e.control.value
+        fill_color_checkbox.current.update()
 
     # quit app
     def close_quit_dialog(e):
@@ -224,15 +227,15 @@ def main(page):
         time.sleep(5)
         page.window_destroy()
 
-    quit_dialog = ft.AlertDialog(
+    quit_dialog = AlertDialog(
         content=Row(
             alignment=MainAxisAlignment.CENTER,
             controls=[
                 Text("終了しますか？（変換処理は中断されます）"),
             ]),
         actions=[
-            ft.TextButton("終了する", on_click=quit_app),
-            ft.TextButton("キャンセル", on_click=close_quit_dialog),
+            TextButton("終了する", on_click=quit_app),
+            TextButton("キャンセル", on_click=close_quit_dialog),
         ],
         actions_alignment=MainAxisAlignment.END,
     )
@@ -248,13 +251,13 @@ def main(page):
     page.on_window_event = on_window_close
     page.window_prevent_close = True
 
-    overlay_stack = ft.Stack(
+    overlay_stack = Stack(
         controls=[
             Container(
                 width=page.window_width, height=page.window_height,
                 alignment=alignment.center,
                 bgcolor=colors.with_opacity(0.6, colors.BLACK),
-                content=ft.ProgressRing())],
+                content=ProgressRing())],
         visible=False)
     page.overlay.append(overlay_stack)
 
@@ -274,7 +277,7 @@ def main(page):
         update_cpu_text(num)
 
     # detailed configuration
-    end_drawer = ft.NavigationDrawer(
+    end_drawer = NavigationDrawer(
         controls=[
             Container(
                 padding=30, alignment=alignment.center,
@@ -284,7 +287,7 @@ def main(page):
                         Icon(icons.SETTINGS),
                         Text(value="詳細設定", size=24, weight=font_bold),
                     ])),
-            ft.Divider(),
+            Divider(),
             Container(
                 padding=20, alignment=alignment.center,
                 content=Row(
@@ -292,13 +295,13 @@ def main(page):
                     controls=[
                         Text(
                             ref=cpu_num_text,
-                            value=f"同時プロセス実行数: {config.cpu_num_val}",
+                            value=f"同時プロセス実行数: {config.cpu_num}",
                             size=16, weight=font_bold),
                         Slider(
                             ref=cpu_num_slider,
                             min=1, max=max_cpu_num,
                             divisions=max_cpu_num-1, width=100,
-                            value=config.cpu_num_val,
+                            value=config.cpu_num,
                             on_change=change_cpu_num
                         )
                     ])),
@@ -320,28 +323,28 @@ def main(page):
     def show_end_drawer(e):
         page.show_end_drawer(end_drawer)
 
-    page.floating_action_button = ft.FloatingActionButton(
+    page.floating_action_button = FloatingActionButton(
         icon=icons.SETTINGS, on_click=show_end_drawer)
 
     # run
-    def run_compression(e):
+    def run_conversion(e):
         # check input value
-        is_input_path_empty = input_path.current.value == ""
-        is_output_path_empty = output_path.current.value == ""
+        is_input_path_empty = input_path_textfield.current.value == ""
+        is_output_path_empty = output_path_textfield.current.value == ""
 
         if is_input_path_empty:
-            input_path.current.error_text = "フォルダパスまたはファイルパスを入力してください"
-            input_path.current.bgcolor = colors.ON_ERROR
+            input_path_textfield.current.error_text = "フォルダパスまたはファイルパスを入力してください"
+            input_path_textfield.current.bgcolor = colors.ON_ERROR
         else:
-            input_path.current.error_text = ""
-            input_path.current.bgcolor = colors.BACKGROUND
+            input_path_textfield.current.error_text = ""
+            input_path_textfield.current.bgcolor = colors.BACKGROUND
 
         if is_output_path_empty:
-            output_path.current.error_text = "フォルダパスを入力してください"
-            output_path.current.bgcolor = colors.ON_ERROR
+            output_path_textfield.current.error_text = "フォルダパスを入力してください"
+            output_path_textfield.current.bgcolor = colors.ON_ERROR
         else:
-            output_path.current.error_text = ""
-            output_path.current.bgcolor = colors.BACKGROUND
+            output_path_textfield.current.error_text = ""
+            output_path_textfield.current.bgcolor = colors.BACKGROUND
 
         if is_input_path_empty or is_output_path_empty:
             page.update()
@@ -351,16 +354,16 @@ def main(page):
         # 全ての文字を検知していないので注意
         invalid_characters = r'[*?"<>|]'
         contain_invalid_char = bool(
-            re.search(invalid_characters, output_path.current.value))
+            re.search(invalid_characters, output_path_textfield.current.value))
 
         if contain_invalid_char:
-            output_path.current.error_text = r'無効な文字 * ? " < > : | が含まれています'
-            output_path.current.bgcolor = colors.ON_ERROR
-            output_path.current.update()
+            output_path_textfield.current.error_text = r'無効な文字 * ? " < > : | が含まれています'
+            output_path_textfield.current.bgcolor = colors.ON_ERROR
+            output_path_textfield.current.update()
             return
 
-        input_path_val = input_path.current.value
-        output_path_val = output_path.current.value
+        input_path = input_path_textfield.current.value
+        output_path = output_path_textfield.current.value
         file_ext = file_exts_dropdown.current.value.lower()
         if file_ext == exts.PNG_EXT:
             is_lossless = True
@@ -368,32 +371,32 @@ def main(page):
             is_lossless = False
         else:
             is_lossless = lossless.current.value
-        ratio = 100 if is_lossless else int(compression_ratio.current.value)
-        is_fill_transparent_val = is_fill_transparent.current.value
-        t_color = transparent_color.bgcolor
+        ratio = 100 if is_lossless else int(quality_slider.current.value)
+        is_fill_color = fill_color_checkbox.current.value
+        t_color = fill_color.bgcolor
         cpu_num = cpu_num_slider.current.value
 
         # save json
         config.save(
-            input_path=input_path_val,
-            output_path=output_path_val,
+            input_path=input_path,
+            output_path=output_path,
             ext=file_ext,
-            comp_ratio=ratio,
+            quality=ratio,
             is_lossless=is_lossless,
-            is_fill_transparent=is_fill_transparent_val,
-            transparent_color=t_color,
+            is_fill_color=is_fill_color,
+            fill_color=t_color,
             cpu_num=cpu_num
         )
 
         # log
-        log_output.current.value = f"入力フォルダパス: {input_path_val}\n"
-        log_output.current.value += f"出力フォルダパス: {output_path_val}\n"
+        log_output.current.value = f"入力フォルダパス: {input_path}\n"
+        log_output.current.value += f"出力フォルダパス: {output_path}\n"
         log_output.current.value += f"変換後の拡張子: *.{file_ext}\n"
         log_output.current.value += f"同時プロセス実行数: {cpu_num}\n"
         log_output.current.value += f"可逆圧縮モード: {is_lossless}\n"
         if not is_lossless:
             log_output.current.value += f"品質: {ratio}%\n"
-        if is_fill_transparent_val:
+        if is_fill_color:
             log_output.current.value += f"透過部分の色: {t_color}\n"
 
         # prevent double clicking
@@ -402,16 +405,16 @@ def main(page):
         page.add(progress_bar)
         page.update()
 
-        # Actual compression logic goes here
+        # Actual comversion logic goes here
         try:
             nonlocal is_running_process
             is_running_process = True
-            os.makedirs(output_path_val, exist_ok=True)
-            settings = (input_path_val, output_path_val,
-                        file_ext, ratio, is_lossless,
-                        is_fill_transparent_val, t_color, cpu_num)
 
-            if converter.can_convert(input_path_val):
+            settings = (input_path, output_path,
+                        file_ext, ratio, is_lossless,
+                        is_fill_color, t_color, cpu_num)
+
+            if converter.can_convert(input_path):
                 converter.convert_images_in_folder(settings)
                 log_output.current.value += "画像の変換が完了しました"
             else:
@@ -427,7 +430,7 @@ def main(page):
             page.update()
 
     # stop
-    def stop_compression(e):
+    def stop_conversion(e):
         converter.stop_process()
         stop_btn.current.disabled = True
         stop_btn.current.update()
@@ -466,9 +469,9 @@ def main(page):
                                 alignment=MainAxisAlignment.CENTER,
                                 controls=[
                                     TextField(
-                                        ref=input_path,
+                                        ref=input_path_textfield,
                                         label="入力フォルダパス",
-                                        value=config.input_path_val, width=500),
+                                        value=config.input_path, width=500),
                                     ElevatedButton(
                                         content=Icon(icons.FOLDER_OPEN),
                                         width=70, height=45,
@@ -478,7 +481,7 @@ def main(page):
                                         width=70, height=45,
                                         on_click=lambda _: pick_input_filepath_dialog.pick_files(
                                             allow_multiple=True,
-                                            file_type=ft.FilePickerFileType.IMAGE,
+                                            file_type=FilePickerFileType.IMAGE,
                                             allowed_extensions=[
                                                 "jpeg", "jpg", "png", "webp", "avif"],
                                         )),
@@ -487,9 +490,9 @@ def main(page):
                                 alignment=MainAxisAlignment.CENTER,
                                 controls=[
                                     TextField(
-                                        ref=output_path,
+                                        ref=output_path_textfield,
                                         label="出力フォルダパス",
-                                        value=config.output_path_val, width=500),
+                                        value=config.output_path, width=500),
                                     ElevatedButton(
                                         content=Icon(icons.FOLDER_OPEN),
                                         width=70, height=45,
@@ -508,7 +511,7 @@ def main(page):
                                             "入力フォルダを開く", on_click=open_input_dir)),
                                     Container(
                                         alignment=alignment.center_right,
-                                        height=25, margin=ft.Margin(0, 0, 30, 0),
+                                        height=25, margin=Margin(0, 0, 30, 0),
                                         content=TextButton(
                                             "出力フォルダを開く", on_click=open_output_dir)),
                                 ]),
@@ -536,7 +539,7 @@ def main(page):
                                                     weight=font_bold),
                                                 Dropdown(
                                                     ref=file_exts_dropdown,
-                                                    value=config.ext_val,
+                                                    value=config.ext,
                                                     options=[
                                                         dropdown.Option(
                                                             exts.JPG_EXT),
@@ -560,24 +563,24 @@ def main(page):
                                                     width=160, size=16,
                                                     weight=font_bold),
                                                 Switch(ref=lossless,
-                                                       value=config.lossless_val),
+                                                       value=config.lossless),
                                             ]),
                                         Row(
                                             alignment=MainAxisAlignment.START,
                                             width=260,
                                             controls=[
                                                 Text(
-                                                    ref=compression_ratio_text,
-                                                    value=f"品質: {config.comp_ratio_val} %",
+                                                    ref=quality_text,
+                                                    value=f"品質: {config.quality} %",
                                                     width=120, size=16,
                                                     weight=font_bold),
                                                 Slider(
-                                                    ref=compression_ratio,
+                                                    ref=quality_slider,
                                                     label="ファイルサイズ 大",
                                                     min=0, max=100,
-                                                    value=config.comp_ratio_val,
+                                                    value=config.quality,
                                                     width=140, divisions=20,
-                                                    on_change=change_comp_ratio),
+                                                    on_change=change_quality),
                                             ]),
                                     ]))),
                         Column(
@@ -596,8 +599,8 @@ def main(page):
                                                         width=150, size=16,
                                                         weight=font_bold),
                                                     Checkbox(
-                                                        ref=is_fill_transparent,
-                                                        value=config.fill_transparent_val,
+                                                        ref=fill_color_checkbox,
+                                                        value=config.fill_color,
                                                         width=80,
                                                         on_change=toggle_transparency
                                                     ),
@@ -610,7 +613,7 @@ def main(page):
                                                         value="透過部分の色",
                                                         width=160, size=16,
                                                         weight=font_bold),
-                                                    transparent_color,
+                                                    fill_color,
                                                 ]),
                                         ]),
                                     )),
@@ -621,18 +624,19 @@ def main(page):
                                                 ref=run_btn,
                                                 icon=icons.PLAY_ARROW,
                                                 text="実行", width=200, height=60,
-                                                on_click=run_compression),
+                                                on_click=run_conversion),
                                             ElevatedButton(
                                                 ref=stop_btn,
                                                 icon=icons.STOP, text="停止",
                                                 width=110, height=60,
-                                                on_click=stop_compression)
+                                                on_click=stop_conversion,
+                                                disabled=True)
                                         ]),
                                 )
                             ]),
                     ]),
                 Column(
-                    scroll=ft.ScrollMode.ALWAYS,
+                    scroll=ScrollMode.ALWAYS,
                     height=230,
                     controls=[
                         Container(
@@ -647,13 +651,12 @@ def main(page):
             ])
     ),
 
-    # 関数で初期化したい場合は、page.add()した後でないと実行できないので注意
+    # page.add()した後でないと実行できないので注意
     toggle_textfield_border()
-    switch_options_value(config.ext_val)
-    stop_btn.current.disabled = True
+    switch_options_value(config.ext)
     page.update()
 
 
 if __name__ == "__main__":
     converter.set_signals()
-    ft.app(target=main)
+    flet.app(target=main)
