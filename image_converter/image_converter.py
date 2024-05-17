@@ -188,7 +188,6 @@ def convert_images_concurrently(conversion_params):
 
     os.makedirs(output_folder_path, exist_ok=True)
     global should_stop
-    should_stop = False
     isError = False
     message = ""
 
