@@ -14,11 +14,11 @@ from PIL import Image, PngImagePlugin
 import image_converter.const as exts
 
 
-def is_supported_extension(file_path):
+def is_supported_extension(path):
     """
     ファイルのヘッダーから拡張子を判定する
     """
-    with open(file_path, 'rb') as f:
+    with open(path, 'rb') as f:
         header = f.read(16)  # ファイルの先頭16バイトを読み込む
         return header.startswith(exts.SUPPORTED_EXTENSIONS_BIN)
 
@@ -102,7 +102,7 @@ def get_path_pairs(input_path, output_folder_path, output_format):
 
     paths = {}
     # input_pathがファイル単体の場合
-    if os.path.isfile(input_path) and is_supported_extension(input_path):
+    if os.path.isfile(input_path):
         filename = os.path.basename(input_path)
         basename = os.path.splitext(filename)[0]
         counter = 1
@@ -117,33 +117,31 @@ def get_path_pairs(input_path, output_folder_path, output_format):
         return paths
 
     # 複数ファイルの場合
-    elif os.path.isdir(input_path):
 
-        # フォルダ内のファイルのみを取得する
-        filenames = [f for f in os.listdir(input_path) if os.path.isfile(
-            os.path.join(input_path, f))]
-        for filename in filenames:
-            input_fullpath = os.path.join(input_path, filename)
-            # 関係のないファイルは除外
-            if not is_supported_extension(input_fullpath):
-                continue
+    # フォルダ内のファイルのみを取得する
+    filenames = [f for f in os.listdir(input_path) if os.path.isfile(
+        os.path.join(input_path, f))]
+    for filename in filenames:
+        input_fullpath = os.path.join(input_path, filename)
+        # 関係のないファイルは除外
+        if not is_supported_extension(input_fullpath):
+            continue
+        # ユニークなファイル名を作成
+        counter = 1
+        basename = os.path.splitext(filename)[0]
+        unique_name = basename
+        # dictへのinによるキーの存在確認はO(1) で実行される
+        while unique_name in existed_output_filenames:
+            unique_name = f"{basename}_{counter:03d}"
+            counter += 1
+        existed_output_filenames.add(unique_name)
 
-            # ユニークなファイル名を作成
-            counter = 1
-            basename = os.path.splitext(filename)[0]
-            unique_name = basename
-            # dictへのinによるキーの存在確認はO(1) で実行される
-            while unique_name in existed_output_filenames:
-                unique_name = f"{basename}_{counter:03d}"
-                counter += 1
-            existed_output_filenames.add(unique_name)
+        # ファイルパスのペアを作成
 
-            # ファイルパスのペアを作成
-
-            output_fullpath = get_output_fullpath(
-                output_folder_path, unique_name, output_format)
-            paths[input_fullpath] = output_fullpath
-        return paths
+        output_fullpath = get_output_fullpath(
+            output_folder_path, unique_name, output_format)
+        paths[input_fullpath] = output_fullpath
+    return paths
 
 
 def convert_image(conversion_params):
@@ -169,15 +167,16 @@ def convert_image(conversion_params):
 
 def can_convert(path):
     # 画像ファイル単体の場合
-    if os.path.isfile(path) and is_supported_extension(path):
-        return True
+    if os.path.isfile(path):
+        return is_supported_extension(path)
 
     # フォルダ内に画像ファイルが存在するかどうか
-    if os.path.isdir(path):
-        for file in os.listdir(path):
-            fullpath = os.path.join(path, file)
-            if is_supported_extension(fullpath):
-                return True
+    filenames = [f for f in os.listdir(path) if os.path.isfile(
+        os.path.join(path, f))]
+    for file in filenames:
+        fullpath = os.path.join(path, file)
+        if is_supported_extension(fullpath):
+            return True
     return False
 
 
