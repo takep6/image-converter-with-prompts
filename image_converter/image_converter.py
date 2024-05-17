@@ -1,5 +1,6 @@
 import os
 import signal
+import stat
 import sys
 import threading
 import time
@@ -117,7 +118,11 @@ def get_path_pairs(input_path, output_folder_path, output_format):
 
     # 複数ファイルの場合
     elif os.path.isdir(input_path):
-        for filename in os.listdir(input_path):
+
+        # フォルダ内のファイルのみを取得する
+        filenames = [f for f in os.listdir(input_path) if os.path.isfile(
+            os.path.join(input_path, f))]
+        for filename in filenames:
             input_fullpath = os.path.join(input_path, filename)
             # 関係のないファイルは除外
             if not is_supported_extension(input_fullpath):
@@ -162,6 +167,20 @@ def convert_image(conversion_params):
                            quality, metadata, lossless)
 
 
+def can_convert(path):
+    # 画像ファイル単体の場合
+    if os.path.isfile(path) and is_supported_extension(path):
+        return True
+
+    # フォルダ内に画像ファイルが存在するかどうか
+    if os.path.isdir(path):
+        for file in os.listdir(path):
+            fullpath = os.path.join(path, file)
+            if is_supported_extension(fullpath):
+                return True
+    return False
+
+
 def convert_images_concurrently(conversion_params):
     """
     プロセスの実行をして、画像の変換を並行処理で行う
@@ -175,83 +194,110 @@ def convert_images_concurrently(conversion_params):
     message = ""
 
     if not can_convert(input_path):
-        isError = True
+        # isError = True
         message = "変換可能な画像ファイルがありません"
         return isError, message
 
-    path_pairs = get_path_pairs(
-        input_path, output_folder_path, output_format)
-
-    # プロセス準備
     try:
+        # input_pathとoutput_folder_pathのペアを作成
+        path_pairs = get_path_pairs(
+            input_path, output_folder_path, output_format)
+        # プロセス準備
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
-
-            start_time = time.time()
-
             futures = []
             for input_fullpath, output_fullpath in path_pairs.items():
-                if not should_stop:
-                    futures.append(executor.submit(
-                        convert_image,
-                        (input_fullpath,
-                            output_fullpath,
-                            output_format,
-                            quality,
-                            lossless,
-                            is_fill_color,
-                            fill_color)))
-                else:
+                if should_stop:
                     break
+                futures.append(executor.submit(
+                    convert_image,
+                    (input_fullpath,
+                        output_fullpath,
+                        output_format,
+                        quality,
+                        lossless,
+                        is_fill_color,
+                        fill_color)))
+
             # プロセス実行
             for future in as_completed(futures):
-                if not should_stop:
-                    _ = future.result()
-                else:
+                if should_stop:
                     raise Exception("画像の変換処理をキャンセルしました")
-
-            end_time = time.time()
-
-            message = f"画像の変換処理が完了しました。\n処理時間: {end_time - start_time} sec."
+                _ = future.result()
             print(message)
 
-    except Exception as e:
-        message = "変換中にエラーが発生しました"
+    except PermissionError as e:
         isError = True
-        print(message + e)
+        message = "画像ファイルを変換する権限がありません"
+        print("画像ファイルを変換する権限がありません" + str(e))
+        return isError, message
+
+    except Exception as e:
+        isError = True
+        if should_stop:
+            message = "画像の変換処理をキャンセルしました"
+        else:
+            message = "変換中にエラーが発生しました"
+        print(message + str(e))
         # Futureをキャンセル
         for future in futures:
             if not future.running():
                 future.cancel()
+        return isError, message
 
     except KeyboardInterrupt:
         # ctrl+cで終了した場合
         # プロセスに終了要求(データが不完全でも終了)
+        isError = True
+        message = "プロセスの強制終了が要求されました"
+        print(message)
         for process in executor._processes.values():
             process.terminate()
-            message = "プロセスの強制終了が要求されました。"
-            isError = True
-            print(message)
+        return isError, message
 
-    finally:
-        if should_stop:
-            message = "画像の変換処理を停止しました。"
-            isError = True
+    message = "画像の変換処理が完了しました"
 
     return isError, message
 
 
-def can_convert(path):
-    # 画像ファイル単体の場合
-    if os.path.isfile(path) and is_supported_extension(path):
-        return True
+def convert_images_all_subfolders(conversion_params):
+    """
+    全フォルダの画像を変換する
+    """
+    isError = False
+    message = ""
 
-    # フォルダ内に画像ファイルが存在するかどうか
-    if os.path.isdir(path):
-        for file in os.listdir(path):
-            fullpath = os.path.join(path, file)
-            if is_supported_extension(fullpath):
-                return True
-    return False
+    input_path, output_folder_path, output_format, quality, lossless, is_fill_color, fill_color, cpu_num = conversion_params
+
+    # 画像単体の場合
+    if not os.path.isdir(input_path):
+        isError, message = convert_images_concurrently(conversion_params)
+        return isError, message
+
+    # サブフォルダを含めた全ての入力フォルダパスを取得
+    all_input_folder_paths = [input_path]
+    for root, folder_names, _ in os.walk(input_path):
+        all_input_folder_paths.extend(
+            [os.path.join(root, folder) for folder in folder_names])
+
+    print(all_input_folder_paths)
+
+    # フォルダ数が多すぎる場合は処理を中断する
+    if len(all_input_folder_paths) >= 10000:
+        isError = True
+        message = "フォルダ数が多すぎます。処理を中断します。"
+        return isError, message
+
+    # 全てのフォルダで変換を実行
+    for input_folder_path in all_input_folder_paths:
+        if isError:
+            break
+        output_path = input_folder_path.replace(
+            input_path, output_folder_path)
+        params = (input_folder_path, output_path, output_format,
+                  quality, lossless, is_fill_color, fill_color, cpu_num)
+        isError, message = convert_images_concurrently(params)
+
+    return isError, message
 
 
 # プロセス停止用

@@ -50,6 +50,7 @@ def main(page):
     fill_color_checkbox = Ref[Checkbox]()
     cpu_num_slider = Ref[Slider]()
     cpu_num_text = Ref[Text]()
+    is_convert_all_subfolders = Ref[Checkbox]()
 
     # ColorPicker
     def open_color_picker(e):
@@ -271,6 +272,10 @@ def main(page):
         cpu_num_slider.current.update()
         cpu_num_text.current.update()
 
+    def toggle_subfolders_check(e):
+        is_convert_all_subfolders.current.value = e.data
+        is_convert_all_subfolders.current.update()
+
     # detailed configuration
     end_drawer = NavigationDrawer(
         controls=[
@@ -359,6 +364,7 @@ def main(page):
 
         input_path = input_path_textfield.current.value
         output_path = output_path_textfield.current.value
+        is_convert_subfolders = is_convert_all_subfolders.current.value
         file_ext = file_exts_dropdown.current.value.lower()
         if file_ext == exts.PNG_EXT:
             is_lossless = True
@@ -375,6 +381,7 @@ def main(page):
         config.save(
             input_path=input_path,
             output_path=output_path,
+            is_convert_subfolders=is_convert_subfolders,
             ext=file_ext,
             quality=ratio,
             is_lossless=is_lossless,
@@ -398,6 +405,8 @@ def main(page):
         # prevent double clicking
         run_btn.current.disabled = True
         stop_btn.current.disabled = False
+        log_output.current.error_text = ""
+        log_output.current.bgcolor = colors.BACKGROUND
         page.add(progress_bar)
         page.update()
 
@@ -408,10 +417,17 @@ def main(page):
         conversion_params = (input_path, output_path,
                              file_ext, ratio, is_lossless,
                              is_fill_color, t_color, cpu_num)
+        start_time = time.time()
         # 実行
-        isError, message = converter.convert_images_concurrently(
-            conversion_params)
+        if is_convert_subfolders:
+            isError, message = converter.convert_images_all_subfolders(
+                conversion_params)
+        else:
+            isError, message = converter.convert_images_concurrently(
+                conversion_params)
         log_output.current.value += message
+
+        end_time = time.time()
 
         if isError:
             log_output.current.error_text = "---"
@@ -419,6 +435,7 @@ def main(page):
         else:
             log_output.current.error_text = ""
             log_output.current.bgcolor = colors.BACKGROUND
+            log_output.current.value += f"\n処理時間: {round(end_time - start_time, 3)} sec."
 
         page.remove(progress_bar)
         run_btn.current.disabled = False
@@ -499,19 +516,43 @@ def main(page):
                                     ),
                                 ]),
                             Row(
-                                alignment=MainAxisAlignment.END,
+                                alignment=MainAxisAlignment.SPACE_BETWEEN,
                                 controls=[
                                     Container(
-                                        alignment=alignment.center_right,
+                                        width=250,
                                         height=25,
-                                        content=TextButton(
-                                            "入力フォルダを開く", on_click=open_input_dir)),
+                                        content=Row(
+                                            alignment=MainAxisAlignment.CENTER,
+                                            controls=[
+                                                Checkbox(
+                                                    ref=is_convert_all_subfolders,
+                                                    value=config.is_convert_subfolders,
+                                                    on_change=toggle_subfolders_check
+                                                ),
+                                                Text(
+                                                    "サブフォルダを対象にする", weight=font_bold),
+                                            ]),
+                                    ),
                                     Container(
-                                        alignment=alignment.center_right,
-                                        height=25, margin=Margin(0, 0, 30, 0),
-                                        content=TextButton(
-                                            "出力フォルダを開く", on_click=open_output_dir)),
-                                ]),
+                                        width=400,
+                                        height=25,
+                                        content=Row(
+                                            alignment=MainAxisAlignment.END,
+                                            controls=[
+                                                Container(
+                                                    alignment=alignment.center_right,
+                                                    height=25,
+                                                    content=TextButton(
+                                                        "入力フォルダを開く", on_click=open_input_dir)),
+                                                Container(
+                                                    alignment=alignment.center_right,
+                                                    height=25, margin=Margin(0, 0, 30, 0),
+                                                    content=TextButton(
+                                                        "出力フォルダを開く", on_click=open_output_dir)),
+                                            ]),
+                                    ),
+                                ]
+                            ),
 
                         ])),
 
@@ -597,7 +638,7 @@ def main(page):
                                                         weight=font_bold),
                                                     Checkbox(
                                                         ref=fill_color_checkbox,
-                                                        value=config.fill_color,
+                                                        value=config.is_fill_color,
                                                         width=80,
                                                         on_change=toggle_transparency
                                                     ),
@@ -642,7 +683,7 @@ def main(page):
                             content=TextField(
                                 ref=log_output,
                                 label="ログ", value="-", text_size=14,
-                                multiline=True, read_only=True, width=600, filled=False)
+                                multiline=True, read_only=True, width=700, filled=False)
                         ),
                     ]),
             ])
