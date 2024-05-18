@@ -372,7 +372,7 @@ def main(page):
             is_lossless = False
         else:
             is_lossless = lossless.current.value
-        ratio = 100 if is_lossless else int(quality_slider.current.value)
+        quality = 100 if is_lossless else int(quality_slider.current.value)
         is_fill_color = fill_color_checkbox.current.value
         t_color = fill_color.bgcolor
         cpu_num = cpu_num_slider.current.value
@@ -383,7 +383,7 @@ def main(page):
             output_path=output_path,
             is_convert_subfolders=is_convert_subfolders,
             ext=file_ext,
-            quality=ratio,
+            quality=quality,
             is_lossless=is_lossless,
             is_fill_color=is_fill_color,
             fill_color=t_color,
@@ -398,7 +398,7 @@ def main(page):
         lossless_msg = "ON" if is_lossless else "OFF"
         log_output.current.value += f"可逆圧縮モード: {lossless_msg}\n"
         if not is_lossless:
-            log_output.current.value += f"品質: {ratio}%\n"
+            log_output.current.value += f"品質: {quality}%\n"
         if is_fill_color:
             log_output.current.value += f"透過部分の色: {t_color}\n"
 
@@ -414,19 +414,20 @@ def main(page):
         nonlocal is_running_process
         is_running_process = True
 
-        conversion_params = (input_path, output_path,
-                             file_ext, ratio, is_lossless,
-                             is_fill_color, t_color, cpu_num)
         start_time = time.time()
         # 実行
         isError, message = converter.convert_images_concurrently(
-            conversion_params)
-        # if is_convert_subfolders:
-        #     isError, message = converter.convert_images_all_subfolders(
-        #         conversion_params)
-        # else:
-        #     isError, message = converter.convert_images_concurrently(
-        #         conversion_params)
+            input_path=input_path,
+            output_path=output_path,
+            is_convert_subfolders=is_convert_subfolders,
+            output_format=file_ext,
+            quality=quality,
+            is_lossless=is_lossless,
+            is_fill_color=is_fill_color,
+            fill_color=t_color,
+            cpu_num=cpu_num
+        )
+
         log_output.current.value += message
 
         end_time = time.time()
@@ -451,6 +452,10 @@ def main(page):
         stop_btn.current.disabled = True
         stop_btn.current.update()
 
+    desc01 = "AI生成画像のプロンプトを残したまま画像ファイルを圧縮、あるいは拡張子を変換します（アニメーションは非対応）"
+    desc02 = "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプトやその他のメタデータは保存されません"
+    desc03 = "jpg, png, webp, avif 形式に対応しています"
+
     # page layout
     page.add(
         Column(
@@ -470,11 +475,9 @@ def main(page):
                             padding=20,
                             content=Column(
                                 controls=[
-                                    Text(
-                                        "AI生成画像のプロンプトを残したまま画像ファイルを圧縮、あるいは拡張子を変換します（アニメーションは非対応）"),
-                                    Text(
-                                        "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプトやその他のメタデータは保存されません"),
-                                    Text("jpg, png, webp, avif 形式に対応しています"),
+                                    Text(desc01),
+                                    Text(desc02),
+                                    Text(desc03)
                                 ])),
                     )),
                 Container(

@@ -52,7 +52,6 @@ def fill_image_with_fill_color(image, fill_color):
 def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless):
     """
     画像を指定の拡張子で保存する
-    is_fill_transparentがTrueなら"RGB", Falseなら"RGBA"に変換される
     """
     ext = output_format.lower()
     exif_bytes = None
@@ -104,27 +103,27 @@ def convert_image(conversion_params):
 
 def get_unique_filepath(input_filepath, output_folder_path, output_format):
     """
-    ユニークなファイルパスを取得（単体）
+    ユニークな出力ファイルパスを取得する
     """
     filename = os.path.basename(input_filepath)
     basename, _ = os.path.splitext(filename)
     counter = 1
-    unique_name = basename
+    unique_filename = basename
 
     while os.path.exists(os.path.join(
             output_folder_path,
-            f"{unique_name}.{output_format}")):
-        unique_name = f"{basename}_{counter:03d}"
+            f"{unique_filename}.{output_format}")):
+        unique_filename = f"{basename}_{counter:03d}"
         counter += 1
 
     return os.path.join(
         output_folder_path,
-        f"{unique_name}.{output_format}")
+        f"{unique_filename}.{output_format}")
 
 
 def get_unique_filepaths(input_filepaths, output_folder_path, output_format):
     """
-    ユニークなファイルパスを全て取得（複数）
+    ユニークな出力ファイルパスを全て取得する
     """
     unique_fullpaths = []
     unique_filenames = set()
@@ -133,26 +132,28 @@ def get_unique_filepaths(input_filepaths, output_folder_path, output_format):
         filename = os.path.basename(input_filepath)
         basename, _ = os.path.splitext(filename)
         counter = 1
-        unique_name = basename
+        unique_filename = basename
+        unique_fullpath = os.path.join(
+            output_folder_path,
+            f"{unique_filename}.{output_format}")
 
-        while unique_name in unique_filenames or \
-            os.path.exists(os.path.join(
+        while unique_filename in unique_filenames or \
+                os.path.exists(unique_fullpath):
+            unique_filename = f"{basename}_{counter:03d}"
+            unique_fullpath = os.path.join(
                 output_folder_path,
-                f"{unique_name}.{output_format}")):
-            unique_name = f"{basename}_{counter:03d}"
+                f"{unique_filename}.{output_format}")
             counter += 1
 
-        unique_filenames.add(unique_name)
-        unique_fullpaths.append(os.path.join(
-            output_folder_path,
-            f"{unique_name}.{output_format}"))
+        unique_filenames.add(unique_filename)
+        unique_fullpaths.append(unique_fullpath)
 
     return unique_fullpaths
 
 
-def get_all_path_pairs(input_path, output_folder_path, output_format):
+def get_all_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
     """
-    入力ファイルパスをと出力ファイルパスのペアを全て取得
+    入力ファイルパスをと出力、ファイルパスのペアを全て取得する
     """
 
     path_pairs = {}
@@ -164,34 +165,64 @@ def get_all_path_pairs(input_path, output_folder_path, output_format):
         return path_pairs
 
     # input_pathがフォルダの場合
-    for root, _, files in os.walk(input_path):
-        input_fullpaths = [os.path.join(root, file) for file in files]
+    if is_convert_subfolders:
+        # サブフォルダも全て変換
+        for root, _, files in os.walk(input_path):
+            input_fullpaths = [os.path.join(root, file) for file in files]
+            # 変換可能なファイルのみ抽出
+            convertible_paths = list(
+                filter(is_supported_extension, input_fullpaths))
+            if convertible_paths:
+                o_folder_path = root.replace(input_path, output_folder_path)
+                # フォルダが存在しなければ作成
+                os.makedirs(o_folder_path, exist_ok=True)
+                # 出力パスを取得
+                unique_output_paths = get_unique_filepaths(
+                    convertible_paths, o_folder_path, output_format)
+                # 入力ファイルパスと出力ファイルパスのペアを作成
+                for input_filepath, output_filepath in zip(convertible_paths, unique_output_paths):
+                    path_pairs[input_filepath] = output_filepath
+    else:
+        # ルートフォルダのみ変換
+        # input_path内の全てのファイルを取得
+        input_fullpaths = [os.path.join(input_path, file)
+                           for file in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, file))]
         # 変換可能なファイルのみ抽出
         convertible_paths = list(
             filter(is_supported_extension, input_fullpaths))
-
         if convertible_paths:
-            o_folder_path = root.replace(input_path, output_folder_path)
-            os.makedirs(o_folder_path, exist_ok=True)
-            unique_o_paths = get_unique_filepaths(
-                convertible_paths, o_folder_path, output_format)
-            for input_filepath, output_filepath in zip(convertible_paths, unique_o_paths):
+            # フォルダが存在しなければ作成
+            os.makedirs(output_folder_path, exist_ok=True)
+            # 出力パスを取得
+            unique_output_paths = get_unique_filepaths(
+                convertible_paths, output_folder_path, output_format)
+            # 入力ファイルパスと出力ファイルパスのペアを作成
+            for input_filepath, output_filepath in zip(convertible_paths, unique_output_paths):
                 path_pairs[input_filepath] = output_filepath
+
     return path_pairs
 
 
-def convert_images_concurrently(conversion_params):
+def convert_images_concurrently(
+        input_path,
+        output_path,
+        is_convert_subfolders,
+        output_format,
+        quality,
+        is_lossless,
+        is_fill_color,
+        fill_color,
+        cpu_num):
     """
     プロセスの実行をして、画像の変換を並行処理で行う
     """
-    input_path, output_folder_path, output_format, quality, lossless, is_fill_color, fill_color, cpu_num = conversion_params
 
     global should_stop
     isError = False
     message = ""
 
     all_file_path_pairs = get_all_path_pairs(
-        input_path, output_folder_path, output_format)
+        input_path, output_path, output_format, is_convert_subfolders)
 
     if not all_file_path_pairs:
         message = "変換する画像ファイルはありません"
@@ -209,7 +240,7 @@ def convert_images_concurrently(conversion_params):
                         output_fullpath,
                         output_format,
                         quality,
-                        lossless,
+                        is_lossless,
                         is_fill_color,
                         fill_color)))
 
