@@ -218,17 +218,18 @@ def convert_images_concurrently(
     """
 
     global should_stop
+    should_stop = False
     isError = False
     message = ""
 
-    all_file_path_pairs = get_all_path_pairs(
-        input_path, output_path, output_format, is_convert_subfolders)
-
-    if not all_file_path_pairs:
-        message = "変換する画像ファイルはありません"
-        return isError, message
-
     try:
+        all_file_path_pairs = get_all_path_pairs(
+            input_path, output_path, output_format, is_convert_subfolders)
+
+        if not all_file_path_pairs:
+            message = "変換する画像ファイルはありません"
+            return isError, message
+
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
             for input_fullpath, output_fullpath in all_file_path_pairs.items():
@@ -246,38 +247,34 @@ def convert_images_concurrently(
 
             # プロセス実行
             for future in as_completed(futures):
-                if should_stop:
-                    raise Exception("画像の変換処理をキャンセルしました")
-                _ = future.result()
-            print(message)
+                try:
+                    if should_stop:
+                        # Futureをキャンセル
+                        for future in futures:
+                            if not future.running():
+                                future.cancel()
+                        raise Exception("変換処理をキャンセルします")
+                    else:
+                        _ = future.result()
+                except KeyboardInterrupt:
+                    # ctrl+cで終了した場合
+                    # result一つ一つに対してにエラーハンドリングしないと停止しない可能性
+                    for process in executor._processes.values():
+                        process.terminate()
 
     except PermissionError as e:
         isError = True
-        message = "画像ファイルを変換する権限がありません"
-        print("画像ファイルを変換する権限がありません" + str(e))
+        message = "画像ファイルを変換する権限がありません\n"
+        print(message + str(e))
         return isError, message
 
     except Exception as e:
         isError = True
         if should_stop:
-            message = "画像の変換処理をキャンセルしました"
+            message = "変換処理を停止しました"
         else:
             message = "変換中にエラーが発生しました"
-        print(message + str(e))
-        # Futureをキャンセル
-        for future in futures:
-            if not future.running():
-                future.cancel()
-        return isError, message
-
-    except KeyboardInterrupt:
-        # ctrl+cで終了した場合
-        # プロセスに終了要求(データが不完全でも終了)
-        isError = True
-        message = "プロセスの強制終了が要求されました"
         print(message)
-        for process in executor._processes.values():
-            process.terminate()
         return isError, message
 
     message = "画像の変換処理が完了しました"
@@ -303,5 +300,7 @@ def set_signals():
 
 
 def signal_handler(sig, frame):
-    stop_process()
+    global should_stop
+    with stop_lock:
+        should_stop = True
     sys.exit(0)
