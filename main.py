@@ -419,12 +419,14 @@ def main(page):
                              is_fill_color, t_color, cpu_num)
         start_time = time.time()
         # 実行
-        if is_convert_subfolders:
-            isError, message = converter.convert_images_all_subfolders(
-                conversion_params)
-        else:
-            isError, message = converter.convert_images_concurrently(
-                conversion_params)
+        isError, message = converter.convert_images_concurrently(
+            conversion_params)
+        # if is_convert_subfolders:
+        #     isError, message = converter.convert_images_all_subfolders(
+        #         conversion_params)
+        # else:
+        #     isError, message = converter.convert_images_concurrently(
+        #         conversion_params)
         log_output.current.value += message
 
         end_time = time.time()

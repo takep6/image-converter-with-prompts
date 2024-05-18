@@ -1,9 +1,7 @@
 import os
 import signal
-import stat
 import sys
 import threading
-import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import piexif
@@ -21,10 +19,6 @@ def is_supported_extension(path):
     with open(path, 'rb') as f:
         header = f.read(16)  # ファイルの先頭16バイトを読み込む
         return header.startswith(exts.SUPPORTED_EXTENSIONS_BIN)
-
-
-def get_output_fullpath(output_folder_path, filename, ext):
-    return f"{output_folder_path}/{filename}.{ext}"
 
 
 def extract_metadata(image, input_path):
@@ -87,63 +81,6 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
                exif=exif_bytes, lossless=lossless)
 
 
-def get_path_pairs(input_path, output_folder_path, output_format):
-    """
-    入力ファイルのパスと出力フォルダのパスのペアを返す
-    """
-    # 出力する画像ファイルとあらかじめ出力フォルダに
-    # 存在するファイル名が重複しないようにする
-    existed_output_filenames = set()
-    for filename in os.listdir(output_folder_path):
-        basename, ext = os.path.splitext(filename)
-        ext = ext.replace(".", "").lower()  # 拡張子の"."を削除
-        if ext == output_format:
-            existed_output_filenames.add(basename)
-
-    paths = {}
-    # input_pathがファイル単体の場合
-    if os.path.isfile(input_path):
-        filename = os.path.basename(input_path)
-        basename = os.path.splitext(filename)[0]
-        counter = 1
-        unique_name = basename
-        # ユニークなファイル名を作成
-        while unique_name in existed_output_filenames:
-            unique_name = f"{basename}_{counter:03d}"
-            counter += 1
-        output_fullpath = get_output_fullpath(
-            output_folder_path, unique_name, output_format)
-        paths[input_path] = output_fullpath  # パスのペア作成
-        return paths
-
-    # 複数ファイルの場合
-
-    # フォルダ内のファイルのみを取得する
-    filenames = [f for f in os.listdir(input_path) if os.path.isfile(
-        os.path.join(input_path, f))]
-    for filename in filenames:
-        input_fullpath = os.path.join(input_path, filename)
-        # 関係のないファイルは除外
-        if not is_supported_extension(input_fullpath):
-            continue
-        # ユニークなファイル名を作成
-        counter = 1
-        basename = os.path.splitext(filename)[0]
-        unique_name = basename
-        # dictへのinによるキーの存在確認はO(1) で実行される
-        while unique_name in existed_output_filenames:
-            unique_name = f"{basename}_{counter:03d}"
-            counter += 1
-        existed_output_filenames.add(unique_name)
-
-        # ファイルパスのペアを作成
-
-        output_fullpath = get_output_fullpath(
-            output_folder_path, unique_name, output_format)
-        paths[input_fullpath] = output_fullpath
-    return paths
-
-
 def convert_image(conversion_params):
     """
     画像の変換を行う
@@ -165,19 +102,82 @@ def convert_image(conversion_params):
                            quality, metadata, lossless)
 
 
-def can_convert(path):
-    # 画像ファイル単体の場合
-    if os.path.isfile(path):
-        return is_supported_extension(path)
+def get_unique_filepath(input_filepath, output_folder_path, output_format):
+    """
+    ユニークなファイルパスを取得（単体）
+    """
+    filename = os.path.basename(input_filepath)
+    basename, _ = os.path.splitext(filename)
+    counter = 1
+    unique_name = basename
 
-    # フォルダ内に画像ファイルが存在するかどうか
-    filenames = [f for f in os.listdir(path) if os.path.isfile(
-        os.path.join(path, f))]
-    for file in filenames:
-        fullpath = os.path.join(path, file)
-        if is_supported_extension(fullpath):
-            return True
-    return False
+    while os.path.exists(os.path.join(
+            output_folder_path,
+            f"{unique_name}.{output_format}")):
+        unique_name = f"{basename}_{counter:03d}"
+        counter += 1
+
+    return os.path.join(
+        output_folder_path,
+        f"{unique_name}.{output_format}")
+
+
+def get_unique_filepaths(input_filepaths, output_folder_path, output_format):
+    """
+    ユニークなファイルパスを全て取得（複数）
+    """
+    unique_fullpaths = []
+    unique_filenames = set()
+
+    for input_filepath in input_filepaths:
+        filename = os.path.basename(input_filepath)
+        basename, _ = os.path.splitext(filename)
+        counter = 1
+        unique_name = basename
+
+        while unique_name in unique_filenames or \
+            os.path.exists(os.path.join(
+                output_folder_path,
+                f"{unique_name}.{output_format}")):
+            unique_name = f"{basename}_{counter:03d}"
+            counter += 1
+
+        unique_filenames.add(unique_name)
+        unique_fullpaths.append(os.path.join(
+            output_folder_path,
+            f"{unique_name}.{output_format}"))
+
+    return unique_fullpaths
+
+
+def get_all_path_pairs(input_path, output_folder_path, output_format):
+    """
+    入力ファイルパスをと出力ファイルパスのペアを全て取得
+    """
+
+    path_pairs = {}
+    # input_pathがファイル単体の場合
+    if os.path.isfile(input_path):
+        path_pairs[input_path] = get_unique_filepath(
+            input_path, output_folder_path, output_format)
+        os.makedirs(output_folder_path, exist_ok=True)
+        return path_pairs
+
+    # input_pathがフォルダの場合
+    for root, _, files in os.walk(input_path):
+        input_fullpaths = [os.path.join(root, file) for file in files]
+        # 変換可能なファイルのみ抽出
+        convertible_paths = list(
+            filter(is_supported_extension, input_fullpaths))
+
+        if convertible_paths:
+            o_folder_path = root.replace(input_path, output_folder_path)
+            os.makedirs(o_folder_path, exist_ok=True)
+            unique_o_paths = get_unique_filepaths(
+                convertible_paths, o_folder_path, output_format)
+            for input_filepath, output_filepath in zip(convertible_paths, unique_o_paths):
+                path_pairs[input_filepath] = output_filepath
+    return path_pairs
 
 
 def convert_images_concurrently(conversion_params):
@@ -186,24 +186,21 @@ def convert_images_concurrently(conversion_params):
     """
     input_path, output_folder_path, output_format, quality, lossless, is_fill_color, fill_color, cpu_num = conversion_params
 
-    os.makedirs(output_folder_path, exist_ok=True)
     global should_stop
     isError = False
     message = ""
 
-    if not can_convert(input_path):
-        # isError = True
-        message = "変換可能な画像ファイルがありません"
+    all_file_path_pairs = get_all_path_pairs(
+        input_path, output_folder_path, output_format)
+
+    if not all_file_path_pairs:
+        message = "変換する画像ファイルはありません"
         return isError, message
 
     try:
-        # input_pathとoutput_folder_pathのペアを作成
-        path_pairs = get_path_pairs(
-            input_path, output_folder_path, output_format)
-        # プロセス準備
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
-            for input_fullpath, output_fullpath in path_pairs.items():
+            for input_fullpath, output_fullpath in all_file_path_pairs.items():
                 if should_stop:
                     break
                 futures.append(executor.submit(
@@ -253,47 +250,6 @@ def convert_images_concurrently(conversion_params):
         return isError, message
 
     message = "画像の変換処理が完了しました"
-
-    return isError, message
-
-
-def convert_images_all_subfolders(conversion_params):
-    """
-    全フォルダの画像を変換する
-    """
-    isError = False
-    message = ""
-
-    input_path, output_folder_path, output_format, quality, lossless, is_fill_color, fill_color, cpu_num = conversion_params
-
-    # 画像単体の場合
-    if not os.path.isdir(input_path):
-        isError, message = convert_images_concurrently(conversion_params)
-        return isError, message
-
-    # サブフォルダを含めた全ての入力フォルダパスを取得
-    all_input_folder_paths = [input_path]
-    for root, folder_names, _ in os.walk(input_path):
-        all_input_folder_paths.extend(
-            [os.path.join(root, folder) for folder in folder_names])
-
-    print(all_input_folder_paths)
-
-    # フォルダ数が多すぎる場合は処理を中断する
-    if len(all_input_folder_paths) >= 10000:
-        isError = True
-        message = "フォルダ数が多すぎます。処理を中断します。"
-        return isError, message
-
-    # 全てのフォルダで変換を実行
-    for input_folder_path in all_input_folder_paths:
-        if isError:
-            break
-        output_path = input_folder_path.replace(
-            input_path, output_folder_path)
-        params = (input_folder_path, output_path, output_format,
-                  quality, lossless, is_fill_color, fill_color, cpu_num)
-        isError, message = convert_images_concurrently(params)
 
     return isError, message
 
