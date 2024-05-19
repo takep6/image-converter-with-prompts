@@ -2,6 +2,7 @@ import os
 import signal
 import sys
 import threading
+import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import piexif
@@ -91,11 +92,11 @@ def convert_image(conversion_params):
         if input_path.endswith((exts.PNG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
             if image.is_animated:
                 return
+        # 画像のプロンプト情報を取得
+        metadata = extract_metadata(image, input_path)
         # 透明部分を塗りつぶす
         if is_fill_color:
             image = fill_image_with_fill_color(image, fill_color)
-        # 画像のプロンプト情報を取得
-        metadata = extract_metadata(image, input_path)
         # 保存
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless)
@@ -264,8 +265,8 @@ def convert_images_concurrently(
 
     except PermissionError as e:
         isError = True
-        message = "画像ファイルを変換する権限がありません\n"
-        print(message + str(e))
+        message = "画像ファイルを変換する権限がありません"
+        print(f"{message}\n{e}")
         return isError, message
 
     except Exception as e:
@@ -274,7 +275,8 @@ def convert_images_concurrently(
             message = "変換処理を停止しました"
         else:
             message = "変換中にエラーが発生しました"
-        print(message)
+        error_traceback = traceback.format_exc()
+        print(f"{message}\n{e}\n{error_traceback}")
         return isError, message
 
     message = "画像の変換処理が完了しました"
