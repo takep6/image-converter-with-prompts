@@ -10,7 +10,8 @@ from flet import (AlertDialog, Card, Checkbox, Column, Container,
                   FloatingActionButton, FontWeight, Icon, MainAxisAlignment,
                   Margin, NavigationDrawer, ProgressBar, ProgressRing, Ref,
                   Row, ScrollMode, Slider, Stack, Switch, Text, TextButton,
-                  TextField, alignment, colors, dropdown, icons)
+                  TextDecoration, TextField, TextSpan, TextStyle, alignment,
+                  colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
 import image_converter.const as exts
@@ -347,7 +348,8 @@ def main(page):
             output_path_textfield.current.bgcolor = colors.BACKGROUND
 
         if is_input_path_empty or is_output_path_empty:
-            page.update()
+            input_path_textfield.current.update()
+            output_path_textfield.current.update()
             return
 
         # フォルダ名の無効な文字をチェック
@@ -452,9 +454,18 @@ def main(page):
         stop_btn.current.disabled = True
         stop_btn.current.update()
 
-    desc01 = "AI生成画像のプロンプトを残したまま画像ファイルを圧縮、あるいは拡張子を変換します（アニメーションは非対応）"
-    desc02 = "ローカル版の画像のプロンプトのみ保存されます。NovelAIのプロンプトやその他のメタデータは保存されません"
-    desc03 = "jpg, png, webp, avif 形式に対応しています"
+    def highlight_link(e):
+        e.control.style.color = colors.BLUE
+        e.control.update()
+
+    def unhighlight_link(e):
+        e.control.style.color = None
+        e.control.update()
+
+    desc01 = "AI生成画像のプロンプトを残したまま、画像ファイルの圧縮や拡張子の変換を行います。（アニメーションは非対応）"
+    desc02 = "StableDiffusionWebUI(Forge)の画像向けです。ComfyUI, NovelAIも一応対応しています。"
+    desc03 = "jpg, png, webp, avif 形式に対応しています。　詳しくはこちら "
+    desc04 = "(使い方)"
 
     # page layout
     page.add(
@@ -477,7 +488,14 @@ def main(page):
                                 controls=[
                                     Text(desc01),
                                     Text(desc02),
-                                    Text(desc03)
+                                    Text(desc03, spans=[
+                                        TextSpan(
+                                            desc04,
+                                            TextStyle(
+                                                decoration=TextDecoration.UNDERLINE),
+                                            url=r"https://github.com/takep6/image-converter-with-prompts#%E4%BD%BF%E3%81%84%E6%96%B9",
+                                            on_enter=highlight_link,
+                                            on_exit=unhighlight_link)]),
                                 ])),
                     )),
                 Container(

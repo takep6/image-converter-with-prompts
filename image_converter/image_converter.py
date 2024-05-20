@@ -53,8 +53,11 @@ def fill_image_with_fill_color(image, fill_color):
 
 
 def convert_webui_to_novelai(metadata):
+    """
+    jpg, webp, avif向けに変換したNovelAIの画像のメタデータを(png向けに)復元する
+    """
     try:
-        # NAI以降の文字列を抽出してdict型に変換してから返す
+        # "NAI:"以降の文字列を抽出してdict型に変換してから返す
         md = metadata["parameters"][metadata["parameters"].find(
             "NAI:")+4:].strip()
         return ast.literal_eval(md)
@@ -64,8 +67,11 @@ def convert_webui_to_novelai(metadata):
 
 
 def convert_webui_to_comfyui(metadata):
+    """
+    jpg, webp, avif向けに変換したComfyUIの画像のメタデータを(png向けに)復元する
+    """
     try:
-        # ComfyUI以降の文字列を抽出してdict型に変換してから返す
+        # "ComfyUI:"以降の文字列を抽出してdict型に変換してから返す
         md = metadata["parameters"][metadata["parameters"].find(
             "ComfyUI:")+8:].strip()
         return ast.literal_eval(md)
@@ -75,6 +81,10 @@ def convert_webui_to_comfyui(metadata):
 
 
 def convert_novelai_to_webui(metadata):
+    """
+    NovelAIの画像のメタデータをa1111(WebUI)で読み込める形式に変換する
+    jpg, webp, avif形式に変換してもNovelAIの画像のメタデータが残るように変換している
+    """
     try:
         json_info = json.loads(metadata["Comment"])
 
@@ -88,6 +98,9 @@ Steps: {json_info["steps"]}, Sampler: {json_info["sampler"]}, CFG scale: {json_i
 
 
 def convert_comfyui_to_webui(metadata):
+    """
+    jpg, webp, avif形式に変換してもComfyUIの画像のメタデータが残るように変換している
+    """
     return f"ComfyUI: {metadata}"
 
 
@@ -214,7 +227,7 @@ def get_unique_filepaths(input_filepaths, output_folder_path, output_format):
 
 def get_all_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
     """
-    入力ファイルパスをと出力、ファイルパスのペアを全て取得する
+    入力ファイルパスと出力ファイルパスのペアを全て取得する
     """
 
     path_pairs = {}
@@ -314,18 +327,20 @@ def convert_images_concurrently(
                         for future in futures:
                             if not future.running():
                                 future.cancel()
-                        raise Exception("変換処理をキャンセルします")
+                        raise Exception()
                     else:
                         _ = future.result()
                 except KeyboardInterrupt:
-                    # ctrl+cで終了した場合
-                    # result一つ一つに対してにエラーハンドリングしないと停止しない可能性
+                    # ctrl+cで終了時
+                    # 全てのプロセスに対してにエラーハンドリングする必要がある？
                     for process in executor._processes.values():
                         process.terminate()
 
+            message = "画像の変換処理が完了しました"
+
     except PermissionError as e:
         isError = True
-        message = "画像ファイルを変換する権限がありません"
+        message = "ファイルのアクセス権限がありません"
         print(f"{message}\n{e}")
         return isError, message
 
@@ -339,8 +354,6 @@ def convert_images_concurrently(
         print(f"{message}\n{e}\n{error_traceback}")
         return isError, message
 
-    message = "画像の変換処理が完了しました"
-
     return isError, message
 
 
@@ -349,6 +362,7 @@ should_stop = False
 stop_lock = threading.Lock()
 
 
+# 停止ボタン・ウィンドウを閉じる際にプロセスを停止させる
 def stop_process():
     global should_stop
     with stop_lock:
@@ -356,7 +370,7 @@ def stop_process():
 
 
 def set_signals():
-    # ctrl+cなど異常終了時にシグナルを受け取る
+    # ctrl+cなど異常終了時にシグナルを受け取り、プロセスを停止する
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 

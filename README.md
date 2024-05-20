@@ -25,7 +25,7 @@ Python3.8 以上<br><br>
 自動で仮想環境を作成してモジュールをインストールした後、アプリを起動します。
 <br><br>
 
-方法 ②（わかる人向け）：<br><br>
+方法 ②（Python わかる人向け）：<br><br>
 コマンドプロンプトから以下のコードを実行してください。<br>
 
 ```
@@ -46,16 +46,23 @@ python main.py
 方法 ②：<br>
 
 ```
+venv\Scripts\activate
 python main.py
 ```
 
-上記のスクリプトを実行してください。
+仮想環境を立ち上げてから上記のスクリプトを実行してください。
 <br><br>
 
 ## 使い方
 
 <img width="400" alt="screenshot" src="https://github.com/takep6/image-converter-with-prompt/assets/74190436/e32ca137-2339-464d-8a5d-4a6b9aaddb25">
 <br><br>
+
+画像の入ったフォルダ（入力フォルダパス）と出力先（出力フォルダパス）を選択してください。出力後の拡張子は（jpg, png, webp, avif）から選べます。<br>
+実行ボタンを押すと変換を開始し、停止ボタンで終了します。
+<br><br>
+
+## 設定項目
 
 #### 入力フォルダパス：
 
@@ -133,4 +140,4 @@ png, jpg, webp, avif から選択できます。
 [stable-diffusion-webui（AUTOMATIC1111 氏）](https://github.com/AUTOMATIC1111/stable-diffusion-webui)<br>
 [stable-diffusion-webui-forge（lllyasviel 氏）](https://github.com/lllyasviel/stable-diffusion-webui-forge)
 <br><br>
-アプリを製作するにあたって一部のコードを使用させていただきました。感謝いたします。
+アプリを製作するにあたって上記プロジェクトより一部のコードを使用させていただきました。深く感謝いたします。
