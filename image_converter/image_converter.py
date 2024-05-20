@@ -1,3 +1,5 @@
+import ast
+import json
 import os
 import signal
 import sys
@@ -50,6 +52,45 @@ def fill_image_with_fill_color(image, fill_color):
     return image
 
 
+def convert_webui_to_novelai(metadata):
+    try:
+        # NAI以降の文字列を抽出してdict型に変換してから返す
+        md = metadata["parameters"][metadata["parameters"].find(
+            "NAI:")+4:].strip()
+        return ast.literal_eval(md)
+    except Exception:
+        tb = traceback.format_exc()
+        print(f"NovelAIのメタデータの取得に失敗しました\n{tb}")
+
+
+def convert_webui_to_comfyui(metadata):
+    try:
+        # ComfyUI以降の文字列を抽出してdict型に変換してから返す
+        md = metadata["parameters"][metadata["parameters"].find(
+            "ComfyUI:")+8:].strip()
+        return ast.literal_eval(md)
+    except Exception:
+        tb = traceback.format_exc()
+        print(f"ComfyUIのメタデータの取得に失敗しました\n{tb}")
+
+
+def convert_novelai_to_webui(metadata):
+    try:
+        json_info = json.loads(metadata["Comment"])
+
+        geninfo = f"""{metadata["Description"]}
+Negative prompt: {json_info["uc"]}
+Steps: {json_info["steps"]}, Sampler: {json_info["sampler"]}, CFG scale: {json_info["scale"]}, Seed: {json_info["seed"]}, Size: {json_info["width"]}x{json_info["height"]}, Clip skip: 2, ENSD: 31337, NAI: {metadata}"""
+    except Exception:
+        print("Error parsing NovelAI image generation parameters")
+
+    return geninfo
+
+
+def convert_comfyui_to_webui(metadata):
+    return f"ComfyUI: {metadata}"
+
+
 def save_with_metadata(image, output_fullpath, output_format, quality, metadata, lossless):
     """
     画像を指定の拡張子で保存する
@@ -68,8 +109,17 @@ def save_with_metadata(image, output_fullpath, output_format, quality, metadata,
                    quality=quality, lossless=lossless)
         return
     elif ext in (exts.JPEG_EXT, exts.JPG_EXT, exts.WEBP_EXT, exts.AVIF_EXT):
+        if metadata.get("Software", None) == "NovelAI":
+            # NovelAIはWebUIで読み込める形にメタデータを変換する
+            md = convert_novelai_to_webui(metadata)
+        elif "prompt" in metadata or "workflow" in metadata:
+            # ComfyUIはそのままメタデータを保存
+            md = convert_comfyui_to_webui(metadata)
+        else:
+            # WebUIまたはその他のメタデータを保存
+            md = metadata.get("parameters", "")
         exif_bytes = piexif.dump({"Exif": {piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(
-            metadata.get("parameters", ""), encoding="unicode")}})
+            md, encoding="unicode")}})
 
     else:
         raise ValueError(f"Invalid output format: {output_format}")
@@ -92,11 +142,21 @@ def convert_image(conversion_params):
         if input_path.endswith((exts.PNG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
             if image.is_animated:
                 return
+
         # 画像のプロンプト情報を取得
         metadata = extract_metadata(image, input_path)
+
+        # NovelAIまたはComfyUIの画像を変換したことがあった場合、メタデータを復元する
+        if metadata.get("parameters", None):
+            if "NAI:" in metadata["parameters"]:
+                metadata = convert_webui_to_novelai(metadata)
+            elif "ComfyUI:" in metadata["parameters"]:
+                metadata = convert_webui_to_comfyui(metadata)
+
         # 透明部分を塗りつぶす
         if is_fill_color:
             image = fill_image_with_fill_color(image, fill_color)
+
         # 保存
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless)
