@@ -6,7 +6,6 @@ import os
 import signal
 import sys
 import threading
-import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -181,8 +180,6 @@ def convert_image(conversion_params):
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless)
 
-# TODO: 画像単体の変換でpermission errorが発生する
-
 
 def get_input_output_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
     """
@@ -193,20 +190,20 @@ def get_input_output_path_pairs(input_path, output_folder_path, output_format, i
     # input_pathがファイル単体の場合
     if os.path.isfile(input_path) and is_supported_extension(input_path):
         os.makedirs(output_folder_path, exist_ok=True)
-        input_folder = os.path.dirname(input_path)
-        output_fullpath = input_path.replace(
-            input_folder, output_folder_path
-        )
+        path = Path(input_path)
+        stem = path.stem
         # 出力フォルダの重複チェック
-        basename = os.path.basename(output_fullpath).split(".")[0]
-        counter = 1
-        while os.path.exists(output_fullpath):
+        counter = 0
+        while True:
+            basename = f"{stem}_{counter:03d}" if counter >= 1 else stem
             output_fullpath = os.path.join(
-                output_folder_path, f"{basename}_{counter:03d}.{output_format}"
+                output_folder_path, f"{basename}.{output_format}"
             )
+            if not os.path.exists(output_fullpath):
+                path_pairs[input_path] = output_fullpath
+                break
             counter += 1
 
-        path_pairs[input_path] = output_fullpath
         return path_pairs
 
     # サブフォルダ内のファイルも探索する場合
