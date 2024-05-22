@@ -1,11 +1,15 @@
 import ast
+import datetime
+import glob
 import json
 import os
 import signal
 import sys
 import threading
+import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
 import piexif
 import piexif.helper
@@ -17,11 +21,14 @@ import image_converter.const as exts
 
 def is_supported_extension(path):
     """
-    ファイルのヘッダーから拡張子を判定する
+    ファイル名から拡張子を判定する
     """
-    with open(path, 'rb') as f:
-        header = f.read(16)  # ファイルの先頭16バイトを読み込む
-        return header.startswith(exts.SUPPORTED_EXTENSIONS_BIN)
+    return path.lower().endswith(exts.SUPPORTED_EXTENSIONS)
+
+    # ヘッダーの判定は処理が遅いので保留
+    # with open(path, 'rb') as f:
+    #     header = f.read(16)  # ファイルの先頭16バイトを読み込む
+    #     return header.startswith(exts.SUPPORTED_EXTENSIONS_BIN)
 
 
 def extract_metadata(image, input_path):
@@ -174,105 +181,79 @@ def convert_image(conversion_params):
         save_with_metadata(image, output_path, output_format,
                            quality, metadata, lossless)
 
-
-def get_unique_filepath(input_filepath, output_folder_path, output_format):
-    """
-    ユニークな出力ファイルパスを取得する
-    """
-    filename = os.path.basename(input_filepath)
-    basename, _ = os.path.splitext(filename)
-    counter = 1
-    unique_filename = basename
-
-    while os.path.exists(os.path.join(
-            output_folder_path,
-            f"{unique_filename}.{output_format}")):
-        unique_filename = f"{basename}_{counter:03d}"
-        counter += 1
-
-    return os.path.join(
-        output_folder_path,
-        f"{unique_filename}.{output_format}")
+# TODO: 画像単体の変換でpermission errorが発生する
 
 
-def get_unique_filepaths(input_filepaths, output_folder_path, output_format):
-    """
-    ユニークな出力ファイルパスを全て取得する
-    """
-    unique_fullpaths = []
-    unique_filenames = set()
-
-    for input_filepath in input_filepaths:
-        filename = os.path.basename(input_filepath)
-        basename, _ = os.path.splitext(filename)
-        counter = 1
-        unique_filename = basename
-        unique_fullpath = os.path.join(
-            output_folder_path,
-            f"{unique_filename}.{output_format}")
-
-        while unique_filename in unique_filenames or \
-                os.path.exists(unique_fullpath):
-            unique_filename = f"{basename}_{counter:03d}"
-            unique_fullpath = os.path.join(
-                output_folder_path,
-                f"{unique_filename}.{output_format}")
-            counter += 1
-
-        unique_filenames.add(unique_filename)
-        unique_fullpaths.append(unique_fullpath)
-
-    return unique_fullpaths
-
-
-def get_all_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
+def get_input_output_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
     """
     入力ファイルパスと出力ファイルパスのペアを全て取得する
     """
 
     path_pairs = {}
     # input_pathがファイル単体の場合
-    if os.path.isfile(input_path):
-        path_pairs[input_path] = get_unique_filepath(
-            input_path, output_folder_path, output_format)
+    if os.path.isfile(input_path) and is_supported_extension(input_path):
         os.makedirs(output_folder_path, exist_ok=True)
+        input_folder = os.path.dirname(input_path)
+        output_fullpath = input_path.replace(
+            input_folder, output_folder_path
+        )
+        # 出力フォルダの重複チェック
+        basename = os.path.basename(output_fullpath).split(".")[0]
+        counter = 1
+        while os.path.exists(output_fullpath):
+            output_fullpath = os.path.join(
+                output_folder_path, f"{basename}_{counter:03d}.{output_format}"
+            )
+            counter += 1
+
+        path_pairs[input_path] = output_fullpath
         return path_pairs
 
-    # input_pathがフォルダの場合
+    # サブフォルダ内のファイルも探索する場合
     if is_convert_subfolders:
-        # サブフォルダも全て変換
-        for root, _, files in os.walk(input_path):
-            input_fullpaths = [os.path.join(root, file) for file in files]
-            # 変換可能なファイルのみ抽出
-            convertible_paths = list(
-                filter(is_supported_extension, input_fullpaths))
-            if convertible_paths:
-                o_folder_path = root.replace(input_path, output_folder_path)
-                # フォルダが存在しなければ作成
-                os.makedirs(o_folder_path, exist_ok=True)
-                # 出力パスを取得
-                unique_output_paths = get_unique_filepaths(
-                    convertible_paths, o_folder_path, output_format)
-                # 入力ファイルパスと出力ファイルパスのペアを作成
-                for input_filepath, output_filepath in zip(convertible_paths, unique_output_paths):
-                    path_pairs[input_filepath] = output_filepath
+        search_pattern = os.path.join(input_path, '**/*')
     else:
-        # ルートフォルダのみ変換
-        # input_path内の全てのファイルを取得
-        input_fullpaths = [os.path.join(input_path, file)
-                           for file in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, file))]
-        # 変換可能なファイルのみ抽出
-        convertible_paths = list(
-            filter(is_supported_extension, input_fullpaths))
-        if convertible_paths:
-            # フォルダが存在しなければ作成
-            os.makedirs(output_folder_path, exist_ok=True)
-            # 出力パスを取得
-            unique_output_paths = get_unique_filepaths(
-                convertible_paths, output_folder_path, output_format)
-            # 入力ファイルパスと出力ファイルパスのペアを作成
-            for input_filepath, output_filepath in zip(convertible_paths, unique_output_paths):
-                path_pairs[input_filepath] = output_filepath
+        search_pattern = os.path.join(input_path, '*')
+
+    all_fullpaths = glob.glob(search_pattern, recursive=True)
+
+    # 拡張子によるフィルタリング
+    filtered_input_fullpaths = [
+        path for path in all_fullpaths if is_supported_extension(path)]
+
+    if filtered_input_fullpaths:
+        # output_pathにタイムスタンプ付きの出力フォルダを作成
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        output_folder_path = os.path.join(
+            output_folder_path, f"{timestamp}")
+
+        output_fullpaths = set()
+        output_fullpaths_add = output_fullpaths.add
+
+        for input_fullpath in filtered_input_fullpaths:
+            # 出力ファイルパスを取得
+            output_fullpath = input_fullpath.replace(
+                input_path, output_folder_path)
+            output_path = Path(output_fullpath)
+            # ファイル名とフォルダを取得
+            stem = output_path.stem
+            output_folder = output_path.parent
+
+            # 出力先のフォルダを作成
+            os.makedirs(output_folder, exist_ok=True)
+
+            # 重複チェック
+            counter = 1
+            while True:
+                output_fullpath = f"{output_folder}/{stem}_{counter:03d}.{output_format}"
+                if output_fullpath not in output_fullpaths:
+                    break
+                counter += 1
+
+            output_fullpaths_add(output_fullpath)
+            path_pairs[input_fullpath] = output_fullpath
+
+    print(path_pairs)
 
     return path_pairs
 
@@ -297,16 +278,16 @@ def convert_images_concurrently(
     message = ""
 
     try:
-        all_file_path_pairs = get_all_path_pairs(
+        input_output_path_pairs = get_input_output_path_pairs(
             input_path, output_path, output_format, is_convert_subfolders)
 
-        if not all_file_path_pairs:
+        if not input_output_path_pairs:
             message = "変換する画像ファイルはありません"
             return isError, message
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
             futures = []
-            for input_fullpath, output_fullpath in all_file_path_pairs.items():
+            for input_fullpath, output_fullpath in input_output_path_pairs.items():
                 if should_stop:
                     break
                 futures.append(executor.submit(
@@ -332,7 +313,7 @@ def convert_images_concurrently(
                         _ = future.result()
                 except KeyboardInterrupt:
                     # ctrl+cで終了時
-                    # 全てのプロセスに対してにエラーハンドリングする必要がある？
+                    # １つ１つのプロセスに対してにエラーハンドリングする必要がある
                     for process in executor._processes.values():
                         process.terminate()
 
@@ -341,7 +322,8 @@ def convert_images_concurrently(
     except PermissionError as e:
         isError = True
         message = "ファイルのアクセス権限がありません"
-        print(f"{message}\n{e}")
+        error_traceback = traceback.format_exc()
+        print(f"{message}\n{e}\n{error_traceback}")
         return isError, message
 
     except Exception as e:
