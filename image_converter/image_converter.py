@@ -250,7 +250,7 @@ def get_input_output_path_pairs(input_path, output_folder_path, output_format, i
             output_fullpaths_add(output_fullpath)
             path_pairs[input_fullpath] = output_fullpath
 
-    print(path_pairs)
+    # print(path_pairs)
 
     return path_pairs
 
