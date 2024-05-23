@@ -14,7 +14,7 @@ from flet import (AlertDialog, Card, Checkbox, Column, Container,
                   colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
-import image_converter.const as exts
+import image_converter.exts as exts
 import image_converter.image_converter as converter
 from image_converter.config_loader import ConfigLoader
 from image_converter.theme_loader import ThemeLoader
@@ -502,9 +502,9 @@ def main(page):
         e.control.update()
 
     desc01 = "AI生成画像のプロンプトを残したまま、画像ファイルの圧縮や拡張子の変換を行います。（アニメーションは非対応）"
-    desc02 = "StableDiffusionWebUI(Forge)の画像向けです。ComfyUI, NovelAIも一応対応しています。"
-    desc03 = "jpg, png, webp, avif 形式に対応しています。　詳しくはこちら "
-    desc04 = "(使い方)"
+    desc02 = "主にStableDiffusionWebUI(Forge)の画像向けです。ComfyUIやNovelAIも一応対応しています。"
+    desc03 = "jpg, png, webp, avif 形式に対応しています。　詳しい使い方や注意点は "
+    desc04 = "こちら"
 
     # page layout
     page.add(
@@ -751,7 +751,7 @@ def main(page):
             ])
     ),
 
-    # page.add()した後でないと実行できないので注意
+    # page.add()した後に実行する
     toggle_textfield_border()
     switch_options_value(config.ext)
     page.update()
