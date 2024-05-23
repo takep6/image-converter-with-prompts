@@ -264,7 +264,8 @@ def convert_images_concurrently(
         is_lossless,
         is_fill_color,
         fill_color,
-        cpu_num):
+        cpu_num,
+        pb_callbacks):
     """
     プロセスの実行をして、画像の変換を並行処理で行う
     """
@@ -280,6 +281,7 @@ def convert_images_concurrently(
 
         if not input_output_path_pairs:
             message = "変換する画像ファイルはありません"
+            pb_callbacks["Error"]()
             return isError, message
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
@@ -297,6 +299,9 @@ def convert_images_concurrently(
                         is_fill_color,
                         fill_color)))
 
+            process_count = 0
+            process_total = len(futures)
+            pb_callbacks["start"](process_count, process_total)
             # プロセス実行
             for future in as_completed(futures):
                 try:
@@ -307,7 +312,9 @@ def convert_images_concurrently(
                                 future.cancel()
                         raise Exception()
                     else:
+                        process_count += 1
                         _ = future.result()
+                        pb_callbacks["update"](process_count, process_total)
                 except KeyboardInterrupt:
                     # ctrl+cで終了時
                     # １つ１つのプロセスに対してにエラーハンドリングする必要がある
@@ -321,6 +328,7 @@ def convert_images_concurrently(
         message = "ファイルのアクセス権限がありません"
         error_traceback = traceback.format_exc()
         print(f"{message}\n{e}\n{error_traceback}")
+        pb_callbacks["error"]()
         return isError, message
 
     except Exception as e:
@@ -331,8 +339,11 @@ def convert_images_concurrently(
             message = "変換中にエラーが発生しました"
         error_traceback = traceback.format_exc()
         print(f"{message}\n{e}\n{error_traceback}")
+        pb_callbacks["error"]()
+
         return isError, message
 
+    pb_callbacks["complete"]()
     return isError, message
 
 

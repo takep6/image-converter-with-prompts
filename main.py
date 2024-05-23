@@ -142,9 +142,45 @@ def main(page):
         quality_slider.current.update()
 
     # progress bar
-    progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
+    conversion_pb = ProgressBar(width=600, color=colors.BLUE, value=0)
+    pb_text = Text("")
+    progress_bar_row = Row(
+        alignment=MainAxisAlignment.CENTER,
+        controls=[
+            conversion_pb,
+            pb_text,
+        ]
+    )
+
+    def init_progress_bar():
+        page.add(progress_bar_row)
+        conversion_pb.color = colors.AMBER_400
+        conversion_pb.value = None
+        pb_text.value = ""
+        page.update()
+
+    def start_progress_bar(current, total):
+        conversion_pb.value = 0
+        conversion_pb.color = colors.BLUE
+        pb_text.value = f"{current}/{total}"
+        page.update()
+
+    def update_progress_bar(current, total):
+        conversion_pb.value = current / total
+        pb_text.value = f"{current}/{total}"
+        conversion_pb.update()
+        pb_text.update()
+
+    def complete_progress_bar():
+        conversion_pb.color = colors.GREEN
+        conversion_pb.update()
+
+    def error_progress_bar():
+        conversion_pb.color = colors.ERROR
+        conversion_pb.update()
 
     # format value
+
     def switch_options_value(ext):
         if ext == exts.PNG_EXT:
             lossless.current.value = True
@@ -409,7 +445,7 @@ def main(page):
         stop_btn.current.disabled = False
         log_output.current.error_text = ""
         log_output.current.bgcolor = colors.BACKGROUND
-        page.add(progress_bar)
+        init_progress_bar()
         page.update()
 
         # Actual comversion logic goes here
@@ -427,7 +463,11 @@ def main(page):
             is_lossless=is_lossless,
             is_fill_color=is_fill_color,
             fill_color=t_color,
-            cpu_num=cpu_num
+            cpu_num=cpu_num,
+            pb_callbacks={"start": start_progress_bar,
+                          "update": update_progress_bar,
+                          "complete": complete_progress_bar,
+                          "error": error_progress_bar}
         )
 
         log_output.current.value += message
@@ -442,7 +482,6 @@ def main(page):
             log_output.current.bgcolor = colors.BACKGROUND
             log_output.current.value += f"\n処理時間: {round(end_time - start_time, 3)} sec."
 
-        page.remove(progress_bar)
         run_btn.current.disabled = False
         stop_btn.current.disabled = True
         is_running_process = False
