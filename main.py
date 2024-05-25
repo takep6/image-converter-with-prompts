@@ -177,6 +177,7 @@ def main(page):
 
     def error_progress_bar():
         conversion_pb.color = colors.ERROR
+        conversion_pb.value = 100
         conversion_pb.update()
 
     # format value

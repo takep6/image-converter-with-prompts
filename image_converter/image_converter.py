@@ -224,11 +224,6 @@ def get_input_output_path_pairs(input_path, output_folder_path, output_format, i
         path for path in all_fullpaths if is_supported_extension(path)]
 
     if filtered_input_fullpaths:
-        # output_pathにタイムスタンプ付きの出力フォルダを作成
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        output_folder_path = os.path.join(
-            output_folder_path, f"{timestamp}")
-
         output_fullpaths = set()
         output_fullpaths_add = output_fullpaths.add
 
@@ -281,6 +276,13 @@ def convert_images_concurrently(
     message = ""
 
     try:
+        if not os.path.isfile(input_path):
+            # output_pathにタイムスタンプ付きの出力フォルダを作成
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            ls = "lossless" if is_lossless else "lossy"
+            output_path = os.path.join(
+                output_path, f"{timestamp}_{output_format}_q{quality}_{ls}")
+
         input_output_path_pairs = get_input_output_path_pairs(
             input_path, output_path, output_format, is_convert_subfolders)
 
