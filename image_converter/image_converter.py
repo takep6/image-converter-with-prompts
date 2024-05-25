@@ -47,12 +47,15 @@ def extract_metadata(image, input_path):
     return metadata
 
 
-def fill_image_with_fill_color(image, fill_color):
+def fill_image_with_fill_color(image, fill_color, output_format):
     """
     透過部分を指定した色で塗りつぶす
     """
     if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
-        background = Image.new("RGB", image.size, fill_color)
+        if output_format == exts.JPG_EXT:
+            background = Image.new("RGB", image.size, fill_color)
+        else:
+            background = Image.new("RGBA", image.size, fill_color)
         background.paste(image, mask=image.split()[3])  # アルファチャンネルをマスクとして使用
         image = background
     return image
@@ -98,7 +101,8 @@ def convert_novelai_to_webui(metadata):
 Negative prompt: {json_info["uc"]}
 Steps: {json_info["steps"]}, Sampler: {json_info["sampler"]}, CFG scale: {json_info["scale"]}, Seed: {json_info["seed"]}, Size: {json_info["width"]}x{json_info["height"]}, Clip skip: 2, ENSD: 31337, NAI: {metadata}"""
     except Exception:
-        print("Error parsing NovelAI image generation parameters")
+        tb = traceback.format_exc()
+        print(f"NovelAIのメタデータの取得に失敗しました\n{tb}")
 
     return geninfo
 
@@ -174,7 +178,8 @@ def convert_image(conversion_params):
 
         # 透明部分を塗りつぶす
         if is_fill_color:
-            image = fill_image_with_fill_color(image, fill_color)
+            image = fill_image_with_fill_color(
+                image, fill_color, output_format)
 
         # 保存
         save_with_metadata(image, output_path, output_format,
