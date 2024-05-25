@@ -15,7 +15,7 @@ import piexif.helper
 import pillow_avif
 from PIL import Image, PngImagePlugin
 
-import image_converter.const as exts
+import image_converter.exts as exts
 
 
 def is_supported_extension(path):
@@ -47,12 +47,15 @@ def extract_metadata(image, input_path):
     return metadata
 
 
-def fill_image_with_fill_color(image, fill_color):
+def fill_image_with_fill_color(image, fill_color, output_format):
     """
     透過部分を指定した色で塗りつぶす
     """
     if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
-        background = Image.new("RGB", image.size, fill_color)
+        if output_format == exts.JPG_EXT:
+            background = Image.new("RGB", image.size, fill_color)
+        else:
+            background = Image.new("RGBA", image.size, fill_color)
         background.paste(image, mask=image.split()[3])  # アルファチャンネルをマスクとして使用
         image = background
     return image
@@ -98,7 +101,8 @@ def convert_novelai_to_webui(metadata):
 Negative prompt: {json_info["uc"]}
 Steps: {json_info["steps"]}, Sampler: {json_info["sampler"]}, CFG scale: {json_info["scale"]}, Seed: {json_info["seed"]}, Size: {json_info["width"]}x{json_info["height"]}, Clip skip: 2, ENSD: 31337, NAI: {metadata}"""
     except Exception:
-        print("Error parsing NovelAI image generation parameters")
+        tb = traceback.format_exc()
+        print(f"NovelAIのメタデータの取得に失敗しました\n{tb}")
 
     return geninfo
 
@@ -174,7 +178,8 @@ def convert_image(conversion_params):
 
         # 透明部分を塗りつぶす
         if is_fill_color:
-            image = fill_image_with_fill_color(image, fill_color)
+            image = fill_image_with_fill_color(
+                image, fill_color, output_format)
 
         # 保存
         save_with_metadata(image, output_path, output_format,
@@ -264,7 +269,8 @@ def convert_images_concurrently(
         is_lossless,
         is_fill_color,
         fill_color,
-        cpu_num):
+        cpu_num,
+        pb_callbacks):
     """
     プロセスの実行をして、画像の変換を並行処理で行う
     """
@@ -280,6 +286,7 @@ def convert_images_concurrently(
 
         if not input_output_path_pairs:
             message = "変換する画像ファイルはありません"
+            pb_callbacks["Error"]()
             return isError, message
 
         with ProcessPoolExecutor(max_workers=cpu_num) as executor:
@@ -297,6 +304,9 @@ def convert_images_concurrently(
                         is_fill_color,
                         fill_color)))
 
+            process_count = 0
+            process_total = len(futures)
+            pb_callbacks["start"](process_count, process_total)
             # プロセス実行
             for future in as_completed(futures):
                 try:
@@ -307,7 +317,9 @@ def convert_images_concurrently(
                                 future.cancel()
                         raise Exception()
                     else:
+                        process_count += 1
                         _ = future.result()
+                        pb_callbacks["update"](process_count, process_total)
                 except KeyboardInterrupt:
                     # ctrl+cで終了時
                     # １つ１つのプロセスに対してにエラーハンドリングする必要がある
@@ -321,6 +333,7 @@ def convert_images_concurrently(
         message = "ファイルのアクセス権限がありません"
         error_traceback = traceback.format_exc()
         print(f"{message}\n{e}\n{error_traceback}")
+        pb_callbacks["error"]()
         return isError, message
 
     except Exception as e:
@@ -331,8 +344,11 @@ def convert_images_concurrently(
             message = "変換中にエラーが発生しました"
         error_traceback = traceback.format_exc()
         print(f"{message}\n{e}\n{error_traceback}")
+        pb_callbacks["error"]()
+
         return isError, message
 
+    pb_callbacks["complete"]()
     return isError, message
 
 

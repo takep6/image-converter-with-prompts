@@ -14,7 +14,7 @@ from flet import (AlertDialog, Card, Checkbox, Column, Container,
                   colors, dropdown, icons)
 from flet_contrib.color_picker import ColorPicker
 
-import image_converter.const as exts
+import image_converter.exts as exts
 import image_converter.image_converter as converter
 from image_converter.config_loader import ConfigLoader
 from image_converter.theme_loader import ThemeLoader
@@ -142,9 +142,45 @@ def main(page):
         quality_slider.current.update()
 
     # progress bar
-    progress_bar = ProgressBar(width=600, color=colors.AMBER_400)
+    conversion_pb = ProgressBar(width=600, color=colors.BLUE, value=0)
+    pb_text = Text("")
+    progress_bar_row = Row(
+        alignment=MainAxisAlignment.CENTER,
+        controls=[
+            conversion_pb,
+            pb_text,
+        ]
+    )
+
+    def init_progress_bar():
+        page.add(progress_bar_row)
+        conversion_pb.color = colors.AMBER_400
+        conversion_pb.value = None
+        pb_text.value = ""
+        page.update()
+
+    def start_progress_bar(current, total):
+        conversion_pb.value = 0
+        conversion_pb.color = colors.BLUE
+        pb_text.value = f"{current}/{total}"
+        page.update()
+
+    def update_progress_bar(current, total):
+        conversion_pb.value = current / total
+        pb_text.value = f"{current}/{total}"
+        conversion_pb.update()
+        pb_text.update()
+
+    def complete_progress_bar():
+        conversion_pb.color = colors.GREEN
+        conversion_pb.update()
+
+    def error_progress_bar():
+        conversion_pb.color = colors.ERROR
+        conversion_pb.update()
 
     # format value
+
     def switch_options_value(ext):
         if ext == exts.PNG_EXT:
             lossless.current.value = True
@@ -409,7 +445,7 @@ def main(page):
         stop_btn.current.disabled = False
         log_output.current.error_text = ""
         log_output.current.bgcolor = colors.BACKGROUND
-        page.add(progress_bar)
+        init_progress_bar()
         page.update()
 
         # Actual comversion logic goes here
@@ -427,7 +463,11 @@ def main(page):
             is_lossless=is_lossless,
             is_fill_color=is_fill_color,
             fill_color=t_color,
-            cpu_num=cpu_num
+            cpu_num=cpu_num,
+            pb_callbacks={"start": start_progress_bar,
+                          "update": update_progress_bar,
+                          "complete": complete_progress_bar,
+                          "error": error_progress_bar}
         )
 
         log_output.current.value += message
@@ -442,7 +482,6 @@ def main(page):
             log_output.current.bgcolor = colors.BACKGROUND
             log_output.current.value += f"\n処理時間: {round(end_time - start_time, 3)} sec."
 
-        page.remove(progress_bar)
         run_btn.current.disabled = False
         stop_btn.current.disabled = True
         is_running_process = False
@@ -463,9 +502,9 @@ def main(page):
         e.control.update()
 
     desc01 = "AI生成画像のプロンプトを残したまま、画像ファイルの圧縮や拡張子の変換を行います。（アニメーションは非対応）"
-    desc02 = "StableDiffusionWebUI(Forge)の画像向けです。ComfyUI, NovelAIも一応対応しています。"
-    desc03 = "jpg, png, webp, avif 形式に対応しています。　詳しくはこちら "
-    desc04 = "(使い方)"
+    desc02 = "主にStableDiffusionWebUI(Forge)の画像向けです。ComfyUIやNovelAIも一応対応しています。"
+    desc03 = "jpg, png, webp, avif 形式に対応しています。　詳しい使い方や注意点は "
+    desc04 = "こちら"
 
     # page layout
     page.add(
@@ -712,7 +751,7 @@ def main(page):
             ])
     ),
 
-    # page.add()した後でないと実行できないので注意
+    # page.add()した後に実行する
     toggle_textfield_border()
     switch_options_value(config.ext)
     page.update()
