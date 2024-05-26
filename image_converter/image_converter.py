@@ -72,7 +72,7 @@ def convert_webui_to_novelai(metadata):
         return ast.literal_eval(md)
     except Exception:
         tb = traceback.format_exc()
-        print(f"NovelAIのメタデータの取得に失敗しました\n{tb}")
+        print(f"[Error] NovelAIのメタデータの取得に失敗しました\n{tb}")
 
 
 def convert_webui_to_comfyui(metadata):
@@ -86,7 +86,7 @@ def convert_webui_to_comfyui(metadata):
         return ast.literal_eval(md)
     except Exception:
         tb = traceback.format_exc()
-        print(f"ComfyUIのメタデータの取得に失敗しました\n{tb}")
+        print(f"[Error] ComfyUIのメタデータの取得に失敗しました\n{tb}")
 
 
 def convert_novelai_to_webui(metadata):
@@ -102,7 +102,7 @@ Negative prompt: {json_info["uc"]}
 Steps: {json_info["steps"]}, Sampler: {json_info["sampler"]}, CFG scale: {json_info["scale"]}, Seed: {json_info["seed"]}, Size: {json_info["width"]}x{json_info["height"]}, Clip skip: 2, ENSD: 31337, NAI: {metadata}"""
     except Exception:
         tb = traceback.format_exc()
-        print(f"NovelAIのメタデータの取得に失敗しました\n{tb}")
+        print(f"[Error] NovelAIのメタデータの取得に失敗しました\n{tb}")
 
     return geninfo
 
@@ -164,9 +164,22 @@ def convert_image(conversion_params):
         # アニメーション画像は変換しない
         if input_path.endswith((exts.PNG_EXT, exts.WEBP_EXT, exts.AVIF_EXT)):
             if image.is_animated:
+                print(f"[Error] '{input_path}' はアニメーション画像のため、変換できません")
                 return
 
-        # 画像のプロンプト情報を取得
+        if output_format == exts.WEBP_EXT:
+            width, height = image.size
+            if width > 16383 or height > 16383:
+                print(
+                    f"[Error] '{input_path}' は画像の幅(高さ)の最大サイズが16383 pxを超えるため、変換できません")
+                return
+        elif output_format == exts.JPG_EXT:
+            width, height = image.size
+            if width > 65535 or height > 65535:
+                print(
+                    f"[Error] '{input_path}' は画像の幅(高さ)の最大サイズが65535 pxを超えるため、変換できません")
+
+            # 画像のプロンプト情報を取得
         metadata = extract_metadata(image, input_path)
 
         # NovelAIまたはComfyUIの画像を変換したことがあった場合、メタデータを復元する
@@ -180,10 +193,13 @@ def convert_image(conversion_params):
         if is_fill_color:
             image = fill_image_with_fill_color(
                 image, fill_color, output_format)
-
-        # 保存
-        save_with_metadata(image, output_path, output_format,
-                           quality, metadata, lossless)
+        try:
+            # 保存
+            save_with_metadata(image, output_path, output_format,
+                               quality, metadata, lossless)
+        except Exception:
+            tb = traceback.format_exc()
+            print(f"[Error] '{input_path}' の保存に失敗しました\n{tb}")
 
 
 def get_input_output_path_pairs(input_path, output_folder_path, output_format, is_convert_subfolders):
@@ -276,6 +292,7 @@ def convert_images_concurrently(
     message = ""
 
     try:
+        print("変換処理を開始します...")
         if not os.path.isfile(input_path):
             # output_pathにタイムスタンプ付きの出力フォルダを作成
             timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -287,7 +304,8 @@ def convert_images_concurrently(
             input_path, output_path, output_format, is_convert_subfolders)
 
         if not input_output_path_pairs:
-            message = "変換する画像ファイルはありません"
+            message = "変換可能な画像ファイルが存在しません"
+            print(f"[Error] {message}")
             pb_callbacks["Error"]()
             return isError, message
 
@@ -329,12 +347,13 @@ def convert_images_concurrently(
                         process.terminate()
 
             message = "画像の変換処理が完了しました"
+            print(message)
 
     except PermissionError as e:
         isError = True
-        message = "ファイルのアクセス権限がありません"
-        error_traceback = traceback.format_exc()
-        print(f"{message}\n{e}\n{error_traceback}")
+        message = "ファイルまたはフォルダのアクセス権限がありません"
+        tb = traceback.format_exc()
+        print(f"[Error] {message}\n{e}\n{tb}")
         pb_callbacks["error"]()
         return isError, message
 
@@ -344,8 +363,8 @@ def convert_images_concurrently(
             message = "変換処理を停止しました"
         else:
             message = "変換中にエラーが発生しました"
-        error_traceback = traceback.format_exc()
-        print(f"{message}\n{e}\n{error_traceback}")
+        tb = traceback.format_exc()
+        print(f"[Error] {message}\n{e}\n{tb}")
         pb_callbacks["error"]()
 
         return isError, message
