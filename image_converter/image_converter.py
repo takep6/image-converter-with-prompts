@@ -256,15 +256,18 @@ def get_input_output_path_pairs(input_path, output_folder_path, output_format, i
             os.makedirs(output_folder, exist_ok=True)
 
             # 重複チェック
-            counter = 1
+            counter = 0
             while True:
-                output_fullpath = f"{output_folder}/{stem}_{counter:03d}.{output_format}"
+                basename = f"{stem}_{counter:03d}" if counter >= 1 else stem
+                output_fullpath = os.path.join(
+                    output_folder, f"{basename}.{output_format}"
+                )
+
                 if output_fullpath not in output_fullpaths:
+                    output_fullpaths_add(output_fullpath)
+                    path_pairs[input_fullpath] = output_fullpath
                     break
                 counter += 1
-
-            output_fullpaths_add(output_fullpath)
-            path_pairs[input_fullpath] = output_fullpath
 
     # print(path_pairs)
 
