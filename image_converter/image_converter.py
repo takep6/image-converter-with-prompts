@@ -3,6 +3,7 @@ import datetime
 import glob
 import json
 import os
+import shutil
 import signal
 import sys
 import threading
@@ -197,6 +198,8 @@ def convert_image(conversion_params):
             # 保存
             save_with_metadata(image, output_path, output_format,
                                quality, metadata, lossless)
+            # 更新日時などの属性をコピー
+            shutil.copystat(input_path, output_path)
         except Exception:
             tb = traceback.format_exc()
             print(f"[Error] '{input_path}' の保存に失敗しました\n{tb}")
